@@ -114,6 +114,7 @@ fn unknown_totals_are_none_and_finished_leaves_are_forgotten() {
     job.reporter().advance(5);
     assert_eq!(smooth.fraction(&job.observer().snapshot(), ms(0)), None);
 
+    let mut smooth = Interpolator::new();
     let mut job = Phase::new("known", Total::Exact(4));
     job.start().unwrap();
     let observer = job.observer();
@@ -125,4 +126,90 @@ fn unknown_totals_are_none_and_finished_leaves_are_forgotten() {
     near(at(&mut smooth, &observer, 20), 1.0);
     // The finished leaf's pace was dropped; the display stays at 1.
     assert!(format!("{smooth:?}").contains("running_leaves: 0"));
+}
+
+#[test]
+fn a_count_past_an_estimated_total_shows_no_more_than_done() {
+    let mut job = Phase::new("rows", Total::Estimated(10));
+    job.start().unwrap();
+    let (reporter, observer) = (job.reporter(), job.observer());
+    let mut smooth = Interpolator::new();
+    at(&mut smooth, &observer, 0);
+    reporter.advance(15);
+    near(at(&mut smooth, &observer, 10), 1.0);
+    near(at(&mut smooth, &observer, 20), 1.0);
+}
+
+#[test]
+fn an_overrun_stage_counts_as_done_not_more() {
+    let mut job = Phase::new("convert", Total::Unknown);
+    let mut stages = job
+        .split_vec(
+            Execution::Sequence,
+            &[
+                PhaseSpec::new("decode", 1, Total::Estimated(10)),
+                PhaseSpec::new("encode", 1, Total::Exact(10)),
+            ],
+        )
+        .unwrap();
+    let observer = job.observer();
+    let mut smooth = Interpolator::new();
+    let decode = stages[0].reporter();
+    stages[0].start().unwrap();
+    at(&mut smooth, &observer, 0);
+    decode.advance(20);
+    let snapshot = observer.snapshot().fraction().unwrap();
+    near(snapshot, 0.5);
+    near(at(&mut smooth, &observer, 10), snapshot);
+    near(at(&mut smooth, &observer, 20), snapshot);
+}
+
+#[test]
+fn a_lowered_total_moves_the_display_to_the_work_not_past_it() {
+    let mut job = Phase::new("tiles", Total::Exact(100));
+    job.start().unwrap();
+    let (reporter, observer) = (job.reporter(), job.observer());
+    let mut smooth = Interpolator::new();
+    at(&mut smooth, &observer, 0);
+    reporter.advance(50);
+    near(at(&mut smooth, &observer, 100), 0.5);
+    job.set_total(Total::Exact(60)).unwrap();
+    // 50 of 60: the snapshot's own fraction, not the 50 units shown before.
+    let shown = at(&mut smooth, &observer, 100);
+    near(shown, 50.0 / 60.0);
+    // A raised total holds the display until the work catches up.
+    job.set_total(Total::Exact(200)).unwrap();
+    near(at(&mut smooth, &observer, 100), shown);
+}
+
+#[test]
+fn a_stall_does_not_slow_the_pace_after_it() {
+    let mut job = Phase::new("rows", Total::Exact(100));
+    job.start().unwrap();
+    let (reporter, observer) = (job.reporter(), job.observer());
+    let mut smooth = Interpolator::new();
+    at(&mut smooth, &observer, 0);
+    // Five seconds of setup, then a row every 100 ms.
+    reporter.advance(1);
+    at(&mut smooth, &observer, 5_000);
+    for row in 1..=10 {
+        reporter.advance(1);
+        at(&mut smooth, &observer, 5_000 + 100 * row);
+    }
+    // Half-way to row 12, the display is half a row ahead of row 11.
+    near(at(&mut smooth, &observer, 6_050), 0.115);
+}
+
+#[test]
+fn the_same_or_an_earlier_time_holds_the_display() {
+    let mut job = Phase::new("rows", Total::Exact(10));
+    job.start().unwrap();
+    let (reporter, observer) = (job.reporter(), job.observer());
+    let mut smooth = Interpolator::new();
+    at(&mut smooth, &observer, 0);
+    reporter.advance(1);
+    at(&mut smooth, &observer, 100);
+    let shown = at(&mut smooth, &observer, 150);
+    near(at(&mut smooth, &observer, 150), shown);
+    near(at(&mut smooth, &observer, 120), shown);
 }

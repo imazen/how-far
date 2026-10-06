@@ -135,9 +135,10 @@ the granularity its own loop has. The optional `interpolate` feature adds
 `Interpolator`, which a display holds per operation. It watches each running
 leaf's counts at poll time, using the caller's clock (the tracker reads none),
 and between reports advances the leaf at that leaf's own average pace. The
-estimate is capped at one expected report ahead and at the total, and never
-goes backwards. Pacing stays per stage and costs the library nothing; a
-library that already paces is not paced again.
+estimate is capped at one observed change ahead, at the total and at a
+fraction of 1, and never goes backwards. A change is timed when a poll first
+sees it, so the resolution is the poll interval. Pacing stays per stage and
+costs the library nothing: the library's own reporting is unchanged.
 
 ## Synchronization and portability
 

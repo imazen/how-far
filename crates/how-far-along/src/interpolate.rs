@@ -11,9 +11,16 @@
 //! It assumes that a phase's reports are roughly evenly spaced, as they are
 //! for a loop over rows, tiles or chunks. Each phase keeps its own pace, so
 //! a fast stage followed by a slow one is not extrapolated at the fast pace.
-//! An estimate never passes the next expected report or the phase's total,
-//! and never goes backwards. A leaf that has not yet been seen to change has
-//! no pace and shows its count.
+//! A shorter gap between changes sets the pace at once; a longer one, such
+//! as a stall, moves it a quarter of the way. An estimate never passes the
+//! next expected change, the phase's total, or the snapshot's own fraction
+//! of 1, and never goes backwards. A leaf that has not yet been seen to
+//! change has no pace and shows its count.
+//!
+//! A change is timed when a poll first sees it, so the pace, and the cap of
+//! one change ahead, are only as fine as the polling: polled once a second,
+//! a phase that reports a thousand times a second can run a thousand units
+//! ahead of its count.
 //!
 //! The tracker reads no clock, so the caller passes the time. The result is
 //! for display; decisions should use the snapshot's own fraction.
@@ -72,7 +79,7 @@ struct Pace {
     step: f64,
     interval: f64,
     changes: u32,
-    /// The largest count shown, so a leaf's display never goes back.
+    /// The largest fraction shown, so a leaf's display never goes back.
     shown: f64,
     /// Seen in the current call; leaves no longer running are dropped.
     seen: bool,
@@ -87,18 +94,24 @@ impl Pace {
             step: 0.0,
             interval: 0.0,
             changes: 0,
-            shown: count as f64,
+            shown: 0.0,
             seen: true,
         }
     }
 
-    /// Take a new count, then estimate the count at `now`.
+    /// Take a new count, then estimate the fraction of `total` done at `now`.
     fn estimate(&mut self, count: u64, total: u64, now: Duration) -> f64 {
         if count > self.count {
             let step = (count - self.count) as f64;
             let interval = now.saturating_sub(self.since).as_secs_f64();
-            // The first change sets the pace; later ones move it a quarter of the way.
-            let weight = if self.changes == 0 { 1.0 } else { 0.25 };
+            // The first change, or a shorter gap, sets the pace; a longer gap
+            // moves it a quarter of the way, so one stall doesn't slow it for
+            // many reports.
+            let weight = if self.changes == 0 || interval < self.interval {
+                1.0
+            } else {
+                0.25
+            };
             self.step += (step - self.step) * weight;
             self.interval += (interval - self.interval) * weight;
             self.changes = self.changes.saturating_add(1);
@@ -111,7 +124,8 @@ impl Pace {
             // Never past the next expected report.
             estimate += (self.step * elapsed / self.interval).min(self.step);
         }
-        self.shown = self.shown.max(estimate.min(total as f64)).max(count as f64);
+        let fraction = (estimate.max(count as f64) / total as f64).min(1.0);
+        self.shown = self.shown.max(fraction);
         self.shown
     }
 }
@@ -135,15 +149,8 @@ impl Interpolator {
             pace.seen = false;
         }
         let estimate = self.node(snapshot, now);
-        // Forget leaves that are no longer running.
-        let mut index = 0;
-        while index < self.leaves.len() {
-            if self.leaves[index].seen {
-                index += 1;
-            } else {
-                self.leaves.swap_remove(index);
-            }
-        }
+        // Forget leaves that are no longer running; the rest stay sorted.
+        self.leaves.retain(|pace| pace.seen);
         self.shown = self.shown.max(estimate?);
         Some(self.shown)
     }
@@ -155,7 +162,7 @@ impl Interpolator {
                 (Status::Running, Total::Exact(total) | Total::Estimated(total))
                     if total != 0 && !node.overflowed =>
                 {
-                    Some(self.leaf(node.id, node.completed, total, now) / total as f64)
+                    Some(self.leaf(node.id, node.completed, total, now))
                 }
                 _ => node.fraction(),
             };
@@ -179,13 +186,14 @@ impl Interpolator {
     }
 
     fn leaf(&mut self, node: NodeId, count: u64, total: u64, now: Duration) -> f64 {
-        let mut index = 0;
-        while index < self.leaves.len() && self.leaves[index].node != node {
-            index += 1;
-        }
-        if index == self.leaves.len() {
-            self.leaves.push(Pace::new(node, count, now));
-        }
+        // Sorted by node, so a frame costs O(leaves × log leaves).
+        let index = match self.leaves.binary_search_by_key(&node, |pace| pace.node) {
+            Ok(index) => index,
+            Err(index) => {
+                self.leaves.insert(index, Pace::new(node, count, now));
+                index
+            }
+        };
         let pace = &mut self.leaves[index];
         pace.seen = true;
         pace.estimate(count, total, now)
