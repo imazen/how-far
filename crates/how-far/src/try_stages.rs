@@ -189,8 +189,8 @@ impl<'a> TryStages<'a> {
     /// Run the next stage, marking it `Cancelled` for errors `is_stop`
     /// accepts and `Failed` for any other error. `is_stop` runs only on error.
     ///
-    /// Use this when `work` calls another library whose error can mean either
-    /// a stop or a failure.
+    /// Use this when `work` calls another library whose error can mean a
+    /// cancellation or timeout as well as a real failure.
     pub fn run_classified<T, E>(
         &mut self,
         is_stop: impl FnOnce(&E) -> bool,

@@ -22,8 +22,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-# enough::IsStop is unreleased (imazen/enough#40); see the workspace Cargo.toml.
-ENOUGH_REV = "e1708929608296eb12d7ed2170e112c865ba7230"
+# enough::AsStopReason is unreleased (imazen/enough#40); see the workspace Cargo.toml.
+ENOUGH_REV = "c77965e17d8bdca074a8347a58b46a3646050522"
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--runs", type=int, default=3, help="perf samples per measurement")
@@ -97,7 +97,7 @@ def perf_instructions(argv, cwd):
     return int(next(l for l in out.stderr.splitlines() if "instructions" in l).split(",")[0])
 
 
-# enough::IsStop is unreleased (imazen/enough#40): every generated workspace
+# enough::AsStopReason is unreleased (imazen/enough#40): every generated workspace
 # takes enough from that commit, as the repository's own Cargo.toml does.
 ENOUGH_PATCH = ('[patch.crates-io]\nenough = { git = "https://github.com/imazen/enough", '
                 f'rev = "{ENOUGH_REV}" }}\n')

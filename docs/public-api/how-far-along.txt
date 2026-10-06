@@ -29,10 +29,10 @@
 ## items (109 lines)
 
 pub mod how_far_along
+pub use AsStopReason
 pub use Child
 pub use Complete
 pub use Execution
-pub use IsStop
 pub use NoPulse
 pub use Outcome
 pub use Paced

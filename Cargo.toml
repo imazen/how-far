@@ -27,9 +27,9 @@ how-far = { version = "0.1.0", path = "crates/how-far" }
 how-far-along = { version = "0.1.0", path = "crates/how-far-along", default-features = false }
 how-far-really = { version = "0.1.0", path = "crates/how-far-really" }
 
-# how-far needs `enough::IsStop` (imazen/enough#40), which no released enough
+# how-far needs `enough::AsStopReason` (imazen/enough#40), which no released enough
 # has yet. Until it is published, take enough and almost-enough from that
 # commit; then drop this table and raise the requirements above.
 [patch.crates-io]
-enough = { git = "https://github.com/imazen/enough", rev = "e1708929608296eb12d7ed2170e112c865ba7230" }
-almost-enough = { git = "https://github.com/imazen/enough", rev = "e1708929608296eb12d7ed2170e112c865ba7230" }
+enough = { git = "https://github.com/imazen/enough", rev = "c77965e17d8bdca074a8347a58b46a3646050522" }
+almost-enough = { git = "https://github.com/imazen/enough", rev = "c77965e17d8bdca074a8347a58b46a3646050522" }

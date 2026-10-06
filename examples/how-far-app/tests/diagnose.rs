@@ -1,7 +1,7 @@
 //! Diagnostics across crate boundaries: a test measures libraries it does not
 //! own, including checks made inside a codec context that owns its stop.
 
-use how_far_along::{IsStop, NodeId, Outcome, Unstoppable};
+use how_far_along::{AsStopReason, NodeId, Outcome, Unstoppable};
 use how_far_really::diagnostics::{DiagnosticPulse, Kind, Options};
 use how_far_really::profile::{Profiler, SpanKind, StdClock};
 mod common;
@@ -17,7 +17,7 @@ fn each_codec_stage_in_each_image_gets_its_own_span() {
     let result = process_each(&batch, &measured);
     measured
         .finish(Outcome::from_result(&result, |error| {
-            error.stop_reason().is_some()
+            error.as_stop_reason().is_some()
         }))
         .unwrap();
     let root = observer.snapshot();

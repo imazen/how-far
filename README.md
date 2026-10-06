@@ -46,7 +46,7 @@ All three need Rust 1.88.
 
 ## Status
 
-Not yet published. `how-far` uses `enough::IsStop`, which is not in a
+Not yet published. `how-far` uses `enough::AsStopReason`, which is not in a
 released `enough` yet (imazen/enough#40); until it is, the workspace takes
 `enough` from that commit.
 

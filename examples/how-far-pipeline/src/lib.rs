@@ -45,12 +45,12 @@ impl From<StopReason> for Error {
         Self::Stopped(reason)
     }
 }
-impl IsStop for Error {
-    fn stop_reason(&self) -> Option<StopReason> {
+impl AsStopReason for Error {
+    fn as_stop_reason(&self) -> Option<StopReason> {
         match self {
             Self::Stopped(reason) => Some(*reason),
             // Classification delegates to the nested library's own error.
-            Self::Codec { error, .. } => error.stop_reason(),
+            Self::Codec { error, .. } => error.as_stop_reason(),
             Self::Invalid(_) => None,
         }
     }

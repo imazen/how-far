@@ -19,7 +19,7 @@ application/tests → how-far-really → how-far-along + how-far
 `how-far` owns the portable protocol: `Pulse`, `Stop`, `Report`, planning
 specs, `Child`, `SharedPulse`, `Stages`, `Phases`, pacing and result handoffs,
 plus the two pulses that observe nothing: `NoPulse` and the cancellation-only
-`StopOnly`. `IsStop` lives in `enough`, which libraries already depend on, and
+`StopOnly`. `AsStopReason` lives in `enough`, which libraries already depend on, and
 is re-exported. Libraries expose `&dyn Pulse` and their own error types, never
 tracker owners or diagnostic records unless observation is their purpose.
 
@@ -44,11 +44,11 @@ Both return the library's own `Result` unchanged. `Complete` consumes an owner
 and returns the exact original `Result`: `complete(result)`,
 `result.finish_phase(owner)`, and `complete_with(|owner| ...)`, which runs a
 multi-step body so an early `?` cannot skip the handoff. `From<StopReason>`
-lets library code use `?` at a checkpoint; `IsStop` tells an owner whether an
+lets library code use `?` at a checkpoint; `AsStopReason` tells an owner whether an
 error is a cancellation. It is a trait rather than a
 `TryFrom<&LibraryError> for StopReason` convention because a bound on that
 conversion lets rustc infer `StopReason` for an unannotated error and report a
-misleading mismatch when the conversion is missing; a missing `IsStop` is
+misleading mismatch when the conversion is missing; a missing `AsStopReason` is
 reported as such. Foreign error wrappers use the `_classified` variants. No
 planning error ever enters a library's `Result`: best-effort planning records a
 rejected plan and supplies untracked children that still check the stop. The

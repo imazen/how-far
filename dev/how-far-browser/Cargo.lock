@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "almost-enough"
 version = "0.4.4"
-source = "git+https://github.com/imazen/enough?rev=e1708929608296eb12d7ed2170e112c865ba7230#e1708929608296eb12d7ed2170e112c865ba7230"
+source = "git+https://github.com/imazen/enough?rev=c77965e17d8bdca074a8347a58b46a3646050522#c77965e17d8bdca074a8347a58b46a3646050522"
 dependencies = [
  "enough",
 ]
@@ -71,7 +71,7 @@ checksum = "252afb9ae5eaa683babdc6a068b3f5726eb19e05070c731f9b2a23a7c3e8ed34"
 [[package]]
 name = "enough"
 version = "0.4.4"
-source = "git+https://github.com/imazen/enough?rev=e1708929608296eb12d7ed2170e112c865ba7230#e1708929608296eb12d7ed2170e112c865ba7230"
+source = "git+https://github.com/imazen/enough?rev=c77965e17d8bdca074a8347a58b46a3646050522#c77965e17d8bdca074a8347a58b46a3646050522"
 
 [[package]]
 name = "futures-core"

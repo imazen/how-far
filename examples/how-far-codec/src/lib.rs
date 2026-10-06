@@ -89,8 +89,8 @@ impl From<StopReason> for Error {
         Self::Stopped(reason)
     }
 }
-impl IsStop for Error {
-    fn stop_reason(&self) -> Option<StopReason> {
+impl AsStopReason for Error {
+    fn as_stop_reason(&self) -> Option<StopReason> {
         match self {
             Self::Stopped(reason) => Some(*reason),
             _ => None,
