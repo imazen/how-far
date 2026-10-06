@@ -20,5 +20,5 @@ wasm-bindgen-rayon = { version = "1.3", features = ["no-bundler"] }
 
 # enough::AsStopReason (imazen/enough#40) is unreleased; see the workspace Cargo.toml.
 [patch.crates-io]
-enough = { git = "https://github.com/imazen/enough", rev = "c77965e17d8bdca074a8347a58b46a3646050522" }
-almost-enough = { git = "https://github.com/imazen/enough", rev = "c77965e17d8bdca074a8347a58b46a3646050522" }
+enough = { git = "https://github.com/imazen/enough", rev = "7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e" }
+almost-enough = { git = "https://github.com/imazen/enough", rev = "7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e" }

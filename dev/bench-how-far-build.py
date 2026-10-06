@@ -23,7 +23,7 @@ import tempfile
 from pathlib import Path
 
 # enough::AsStopReason is unreleased (imazen/enough#40); see the workspace Cargo.toml.
-ENOUGH_REV = "c77965e17d8bdca074a8347a58b46a3646050522"
+ENOUGH_REV = "7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e"
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--runs", type=int, default=3, help="perf samples per measurement")
