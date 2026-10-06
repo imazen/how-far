@@ -25,9 +25,9 @@ pub use how_far::WithStop;
 // Application-facing protocol names only; implementor/checked helpers remain in how_far.
 use how_far::ChildPulse;
 pub use how_far::{
-    Child, Complete, Execution, IsStop, NoPulse, Outcome, Paced, PhaseSpec, Phases, PlanError,
-    ProgressExt, Pulse, Report, ResultExt, SharedPulse, Stages, Stop, StopOnly, StopReason, Total,
-    Unstoppable, prelude,
+    AsStopReason, Child, Complete, Execution, NoPulse, Outcome, Paced, PhaseSpec, Phases,
+    PlanError, ProgressExt, Pulse, Report, ResultExt, SharedPulse, Stages, Stop, StopOnly,
+    StopReason, Total, Unstoppable, prelude,
 };
 
 pub use pulse::PulseTree;

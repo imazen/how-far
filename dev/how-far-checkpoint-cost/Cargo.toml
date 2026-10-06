@@ -16,8 +16,8 @@ how-far-really = { path = "../../crates/how-far-really" }
 
 [workspace]
 
-# enough::IsStop (imazen/enough#40) is unreleased; see the workspace Cargo.toml.
+# enough::AsStopReason (imazen/enough#40) is unreleased; see the workspace Cargo.toml.
 [patch.crates-io]
-enough = { git = "https://github.com/imazen/enough", rev = "e1708929608296eb12d7ed2170e112c865ba7230" }
-almost-enough = { git = "https://github.com/imazen/enough", rev = "e1708929608296eb12d7ed2170e112c865ba7230" }
-enough-tokio = { git = "https://github.com/imazen/enough", rev = "e1708929608296eb12d7ed2170e112c865ba7230" }
+enough = { git = "https://github.com/imazen/enough", rev = "7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e" }
+almost-enough = { git = "https://github.com/imazen/enough", rev = "7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e" }
+enough-tokio = { git = "https://github.com/imazen/enough", rev = "7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e" }

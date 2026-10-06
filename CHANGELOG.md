@@ -8,7 +8,7 @@
 
 ### Release ordering
 
-- `how-far` uses `enough::IsStop` (imazen/enough#40), which no released
+- `how-far` uses `enough::AsStopReason` (imazen/enough#40), which no released
   `enough` has. Publish that `enough` first, then drop the workspace's
   `[patch.crates-io]` table and raise the `enough` requirement in the same
   commit.

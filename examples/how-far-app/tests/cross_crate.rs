@@ -1,7 +1,7 @@
 //! An application drives a pipeline library that calls a codec library, both
 //! in other crates, through one `&dyn Pulse`.
 
-use how_far_along::{IsStop, NoPulse, Outcome, Status};
+use how_far_along::{AsStopReason, NoPulse, Outcome, Status};
 mod common;
 use common::{all, find, images, tree, tree_stopping_when};
 use how_far_example_codec::{self as codec, Image};
@@ -33,7 +33,7 @@ fn one_tree_records_both_libraries_phases() {
     let result = process(&batch, &tracked);
     tracked
         .finish(Outcome::from_result(&result, |error| {
-            error.stop_reason().is_some()
+            error.as_stop_reason().is_some()
         }))
         .unwrap();
     let root = observer.snapshot();
@@ -96,7 +96,7 @@ fn cancelling_inside_the_codec_records_each_level_and_returns_the_stop() {
     );
     tracked
         .finish(Outcome::from_result(&result, |error| {
-            error.stop_reason().is_some()
+            error.as_stop_reason().is_some()
         }))
         .unwrap();
     let root = observer.snapshot();
@@ -133,7 +133,7 @@ fn corrupt_input_is_recorded_as_a_failure_not_a_cancellation() {
     );
     tracked
         .finish(Outcome::from_result(&result, |error| {
-            error.stop_reason().is_some()
+            error.as_stop_reason().is_some()
         }))
         .unwrap();
     let root = observer.snapshot();
@@ -162,7 +162,7 @@ fn parallel_images_each_get_an_outcome_when_one_is_cancelled() {
     let observer = tracked.observer();
     let result = process(&batch, &tracked);
     let error = result.unwrap_err();
-    assert!(error.stop_reason().is_some(), "{error:?}");
+    assert!(error.as_stop_reason().is_some(), "{error:?}");
     tracked.finish(Outcome::Cancelled).unwrap();
     let root = observer.snapshot();
     let encode = find(&root, &["encode"]);

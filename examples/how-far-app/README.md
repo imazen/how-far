@@ -21,7 +21,7 @@ CI builds them that way for Cortex-M. Their public signatures expose only core
 `&dyn Pulse`, ordinary inputs, and their own `Result<T, Error>`. The codec uses
 `Phases` for independently selected attempts; the pipeline uses `Stages` for
 sequential work. Both convert `StopReason` into their own errors for `?`, and
-implement `how_far::IsStop` for classification. The outer error delegates
+implement `how_far::AsStopReason` for classification. The outer error delegates
 classification to its codec error without losing it.
 
 The pipeline runs its body through `stages.complete_with(|stages| ...)`, which

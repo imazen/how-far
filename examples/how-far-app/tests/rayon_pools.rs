@@ -1,7 +1,7 @@
 //! Rayon: shared stages, fork-join children, recursive `join`, nested
 //! parallelism, and `'static` tasks.
 
-use how_far_along::{IsStop, Outcome, ProgressExt, Pulse, Status, Unstoppable};
+use how_far_along::{AsStopReason, Outcome, ProgressExt, Pulse, Status, Unstoppable};
 use std::sync::mpsc;
 mod common;
 use common::{all, find, images, tree};
@@ -89,7 +89,7 @@ fn the_global_pool_works_like_a_custom_one() {
     let result = process(&batch, &tracked);
     tracked
         .finish(Outcome::from_result(&result, |error| {
-            error.stop_reason().is_some()
+            error.as_stop_reason().is_some()
         }))
         .unwrap();
     assert_eq!(observer.snapshot().fraction(), Some(1.0));
@@ -161,7 +161,7 @@ fn a_codec_failure_on_one_rayon_image_leaves_the_others_finished() {
     );
     tracked
         .finish(Outcome::from_result(&result, |error| {
-            error.stop_reason().is_some()
+            error.as_stop_reason().is_some()
         }))
         .unwrap();
     let root = observer.snapshot();

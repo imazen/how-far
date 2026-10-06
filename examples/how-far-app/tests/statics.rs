@@ -4,8 +4,8 @@
 use almost_enough::Stopper;
 use how_far::{SharedPulse, Stages};
 use how_far_along::{
-    Child, IsStop, Observer, Outcome, Phase, ProgressExt, Pulse, PulseTree, Reporter, Snapshot,
-    Status, Stop, StopReason, Unstoppable,
+    AsStopReason, Child, Observer, Outcome, Phase, ProgressExt, Pulse, PulseTree, Reporter,
+    Snapshot, Status, Stop, StopReason, Unstoppable,
 };
 use std::sync::Arc;
 mod common;
@@ -57,7 +57,7 @@ fn a_stage_view_stored_by_the_codec_stops_inside_its_stage() {
     assert_eq!(result, Err(codec::Error::Stopped(StopReason::Cancelled)));
     tracked
         .finish(Outcome::from_result(&result, |error| {
-            error.stop_reason().is_some()
+            error.as_stop_reason().is_some()
         }))
         .unwrap();
     let root = observer.snapshot();
@@ -115,7 +115,7 @@ fn blocking_work_runs_on_tokio_while_an_async_task_watches_and_cancels() {
             let result = encode(&image, &tracked);
             tracked
                 .finish(Outcome::from_result(&result, |error| {
-                    error.stop_reason().is_some()
+                    error.as_stop_reason().is_some()
                 }))
                 .unwrap();
             result

@@ -2,7 +2,7 @@
 //! cancellation that crosses threads.
 
 use almost_enough::Stopper;
-use how_far_along::{IsStop, Outcome, ProgressExt, Pulse, Status, Unstoppable};
+use how_far_along::{AsStopReason, Outcome, ProgressExt, Pulse, Status, Unstoppable};
 use std::{sync::Arc, thread, time::Duration};
 mod common;
 use common::{all, find, images, tree, tree_stopping_when};
@@ -95,7 +95,7 @@ fn an_observer_on_another_thread_sees_monotonic_progress() {
         let result = how_far_example_codec::encode(&image, &tracked);
         tracked
             .finish(Outcome::from_result(&result, |error| {
-                error.stop_reason().is_some()
+                error.as_stop_reason().is_some()
             }))
             .unwrap();
         sampler.join().unwrap()
@@ -117,7 +117,7 @@ fn a_tree_moves_into_a_spawned_thread_and_is_observed_from_here() {
         let result = process_each(&work, &tracked);
         tracked
             .finish(Outcome::from_result(&result, |error| {
-                error.stop_reason().is_some()
+                error.as_stop_reason().is_some()
             }))
             .unwrap();
         result.map(|encoded| encoded.len())
@@ -142,7 +142,7 @@ fn cancel_from_the_main_thread_reaches_workers_on_other_threads() {
         let result = how_far_example_codec::encode(&image, &tracked);
         tracked
             .finish(Outcome::from_result(&result, |error| {
-                error.stop_reason().is_some()
+                error.as_stop_reason().is_some()
             }))
             .unwrap();
         result.map(|bytes| bytes.len())

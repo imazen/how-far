@@ -16,7 +16,7 @@ for label in ('base','progress'):
     subprocess.run(['tar','-x','-C',str(target)], input=archive, check=True)
     (target/'Cargo.lock').write_bytes((repo/'Cargo.lock').read_bytes())
     with (target/'Cargo.toml').open('a') as f:
-        f.write('\nenough = { git = "https://github.com/imazen/enough", rev = "e1708929608296eb12d7ed2170e112c865ba7230" }\n') # existing patch.crates-io table
+        f.write('\nenough = { git = "https://github.com/imazen/enough", rev = "7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e" }\n') # existing patch.crates-io table
 p = destination/'progress'
 manifest = (p/'Cargo.toml').read_text().replace('[dependencies]', f'[dependencies]\nhow-far = {{ path = "{root}/crates/how-far", optional = true }}').replace('[features]', '[features]\nprogress = ["dep:how-far"]')
 (p/'Cargo.toml').write_text(manifest)
@@ -124,7 +124,7 @@ edition="2024"
 progress=["zenpng/progress","dep:how-far-along"]
 [dependencies]
 zenpng={{path="../progress",default-features=false}}
-enough={{ git = "https://github.com/imazen/enough", rev = "e1708929608296eb12d7ed2170e112c865ba7230" }}
+enough={{ git = "https://github.com/imazen/enough", rev = "7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e" }}
 how-far-along={{path="{root}/crates/how-far-along",features=["callback"],optional=true}}
 imgref="1.12"
 rgb="0.8"

@@ -1,5 +1,5 @@
 //! Transfer the final work result without converting or consuming its error.
-use crate::{IsStop, Outcome};
+use crate::{AsStopReason, Outcome};
 
 /// An owner that can record a result without changing the operation's result.
 /// Reporting problems are diagnostic evidence, never replacement work errors.
@@ -9,10 +9,10 @@ pub trait Complete: Sized {
     /// abandoned; untouched children are skipped on success, not run on error.
     fn complete_as(self, outcome: Outcome);
 
-    /// Classify the error with [`IsStop`], record completion, and return the
+    /// Classify the error with [`AsStopReason`], record completion, and return the
     /// original result.
     ///
-    /// Forgetting `IsStop` for a library's error is reported as that trait
+    /// Forgetting `AsStopReason` for a library's error is reported as that trait
     /// being unimplemented, not as a type mismatch elsewhere:
     ///
     /// ```compile_fail,E0277
@@ -33,13 +33,13 @@ pub trait Complete: Sized {
     /// ```
     fn complete<T, E>(self, result: Result<T, E>) -> Result<T, E>
     where
-        E: IsStop,
+        E: AsStopReason,
     {
-        self.complete_classified(result, |error| error.stop_reason().is_some())
+        self.complete_classified(result, |error| error.as_stop_reason().is_some())
     }
 
     /// Complete with an explicit classifier, for a foreign error type that
-    /// Rust's orphan rules keep from implementing [`IsStop`].
+    /// Rust's orphan rules keep from implementing [`AsStopReason`].
     fn complete_classified<T, E>(
         self,
         result: Result<T, E>,
@@ -74,14 +74,14 @@ pub trait Complete: Sized {
     /// ```
     fn complete_with<T, E>(mut self, body: impl FnOnce(&mut Self) -> Result<T, E>) -> Result<T, E>
     where
-        E: IsStop,
+        E: AsStopReason,
     {
         let result = body(&mut self);
         self.complete(result)
     }
 
     /// [`complete_with`](Self::complete_with) with an explicit classifier, for
-    /// a foreign error type that cannot implement [`IsStop`], such as an error
+    /// a foreign error type that cannot implement [`AsStopReason`], such as an error
     /// wrapped with its source location.
     fn complete_with_classified<T, E>(
         mut self,
@@ -99,12 +99,12 @@ pub trait ResultExt<T, E>: Sized {
     /// by `?`, `map`, or Drop automatically.
     fn finish_phase(self, owner: impl Complete) -> Result<T, E>
     where
-        E: IsStop;
+        E: AsStopReason;
 }
 impl<T, E> ResultExt<T, E> for Result<T, E> {
     fn finish_phase(self, owner: impl Complete) -> Result<T, E>
     where
-        E: IsStop,
+        E: AsStopReason,
     {
         owner.complete(self)
     }

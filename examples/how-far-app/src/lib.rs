@@ -11,7 +11,7 @@ pub fn observe<T, E>(
     work: impl FnOnce(&dyn Pulse) -> Result<T, E>,
 ) -> (Result<T, E>, Trace)
 where
-    E: IsStop,
+    E: AsStopReason,
 {
     let profiler = Profiler::new(StdClock::new(), 128);
     let pulse = DiagnosticPulse::new(

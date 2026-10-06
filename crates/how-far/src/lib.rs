@@ -5,7 +5,7 @@
 
 extern crate alloc;
 
-pub use enough::{IsStop, Stop, StopReason, Unstoppable};
+pub use enough::{AsStopReason, Stop, StopReason, Unstoppable};
 
 #[cfg(feature = "adapters")]
 mod adapters;
@@ -43,5 +43,5 @@ pub use try_stages::{RunError, TryStages};
 /// `Stop`, `Report` and `ProgressExt` imported to call `check`, `advance` and
 /// `step`.
 pub mod prelude {
-    pub use crate::{Complete, IsStop, ProgressExt, Pulse, Report, ResultExt, Stop};
+    pub use crate::{AsStopReason, Complete, ProgressExt, Pulse, Report, ResultExt, Stop};
 }
