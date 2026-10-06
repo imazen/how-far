@@ -1,0 +1,35 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/how-far",
+    "crates/how-far-along",
+    "crates/how-far-really",
+    "examples/how-far-codec",
+    "examples/how-far-pipeline",
+    "examples/how-far-app",
+]
+# `apidoc/` is the CI-free public-API snapshot runner: excluded so plain
+# `cargo test` and every CI job never compile its dependency tree or run
+# rustdoc. Regenerate via `just api-doc`. The dev harnesses have their own
+# workspaces.
+exclude = ["apidoc", "dev/how-far-checkpoint-cost", "dev/how-far-wasm", "dev/how-far-browser"]
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/imazen/how-far"
+
+[workspace.dependencies]
+enough = { version = "0.4.4", default-features = false }
+almost-enough = { version = "0.4.4", features = ["std"] }
+zenbench = "0.1.6"
+how-far = { version = "0.1.0", path = "crates/how-far" }
+how-far-along = { version = "0.1.0", path = "crates/how-far-along", default-features = false }
+how-far-really = { version = "0.1.0", path = "crates/how-far-really" }
+
+# how-far needs `enough::IsStop` (imazen/enough#40), which no released enough
+# has yet. Until it is published, take enough and almost-enough from that
+# commit; then drop this table and raise the requirements above.
+[patch.crates-io]
+enough = { git = "https://github.com/imazen/enough", rev = "e1708929608296eb12d7ed2170e112c865ba7230" }
+almost-enough = { git = "https://github.com/imazen/enough", rev = "e1708929608296eb12d7ed2170e112c865ba7230" }

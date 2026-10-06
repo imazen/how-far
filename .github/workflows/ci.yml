@@ -1,0 +1,323 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+# Superseded runs only waste runner queue — particularly the macOS
+# jobs, which wait on GitHub's scarcest pool. Only the newest
+# commit's run matters per ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }}, ${{ matrix.rust }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust: [stable, '1.88']
+        exclude:
+          # MSRV only on Linux
+          - os: windows-latest
+            rust: '1.88'
+          - os: macos-latest
+            rust: '1.88'
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust ${{ matrix.rust }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --workspace --all-features
+
+      - name: Test (no default features)
+        run: |
+          cargo test -p how-far --no-default-features
+          cargo test -p how-far-along --no-default-features
+
+  cross-platform:
+    name: Cross (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+          - os: macos-26-intel
+            target: x86_64-apple-darwin
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --workspace --all-features
+
+  # ==========================================================================
+  # Cross-compiled 32-bit testing (i686 via QEMU)
+  # ==========================================================================
+  test-i686:
+    name: Test i686
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: i686-unknown-linux-gnu
+
+      - name: Install cross
+        uses: taiki-e/install-action@cross
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: cross-i686
+
+      - name: Test (i686/QEMU)
+        run: cross test --workspace --all-features --target i686-unknown-linux-gnu
+
+  # ==========================================================================
+  # no_std and WASM build verification
+  # ==========================================================================
+  no-std:
+    name: no_std / WASM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf, wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build without std (alloc, WASM)
+        run: |
+          cargo build -p how-far --target thumbv7em-none-eabihf
+          cargo build -p how-far --target wasm32-unknown-unknown
+          cargo build -p how-far-along --target thumbv7em-none-eabihf --no-default-features
+          cargo build -p how-far-along --target wasm32-unknown-unknown --no-default-features
+          cargo build -p how-far-along --target thumbv7em-none-eabihf --no-default-features --features callback,adapters,json
+          cargo build -p how-far-along --target wasm32-unknown-unknown --no-default-features --features callback,adapters,json
+          # The example libraries adopt how-far as no_std + alloc codecs do.
+          cargo build -p how-far-example-codec -p how-far-example-pipeline --target thumbv7em-none-eabihf --no-default-features --features how-far-example-pipeline/adapters
+
+  # ==========================================================================
+  # Feature powerset — verify all feature combinations compile
+  # ==========================================================================
+  features:
+    name: Feature powerset
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check feature powerset
+        run: cargo hack check --feature-powerset --no-dev-deps -p how-far -p how-far-along -p how-far-really
+
+  # No semver job yet: the crates have no published baseline. Add
+  # `cargo semver-checks -p how-far -p how-far-along -p how-far-really`
+  # after their first release.
+
+  # ==========================================================================
+  # Miri — tracker state under concurrent publication
+  # ==========================================================================
+  miri:
+    name: Miri
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust nightly + Miri
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run Miri (how-far-along metadata replacement and snapshots)
+        run: |
+          cargo +nightly miri test -p how-far-along --lib
+          cargo +nightly miri test -p how-far-along --test phases snapshots_during_metadata_publication
+          cargo +nightly miri test -p how-far-along --all-features --test redesign root_abandonment_racing
+        env:
+          MIRIFLAGS: -Zmiri-strict-provenance
+
+  # ==========================================================================
+  # Instrumentation, build-cost guard and harnesses
+  # ==========================================================================
+  instrumentation:
+    name: Diagnostics, build cost, checkpoint harness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.88'
+      - uses: Swatinem/rust-cache@v2
+      - name: Run the diagnostics example
+        run: cargo run -p how-far-really --example diagnostics
+      - name: Verify interface boundary and report cold builds
+        run: python3 dev/bench-how-far-build.py --runs 3
+      - name: Build the checkpoint-cost harness
+        run: cargo build --release --manifest-path dev/how-far-checkpoint-cost/Cargo.toml
+
+  wasm:
+    name: WASM host boundaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '26'
+      - run: cargo build --manifest-path dev/how-far-wasm/Cargo.toml --target wasm32-unknown-unknown
+      - run: node dev/how-far-wasm/check.mjs
+
+  browser:
+    name: Browser Rayon / UI (Chromium + WebKit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      # The consumer's threaded WASM build requires nightly/build-std. The
+      # libraries stay on stable, at 1.88.
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-09-02
+          components: rust-src
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: dev/how-far-browser
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: dev/how-far-browser/package-lock.json
+      - name: Install matching bindings CLI
+        run: RUSTFLAGS='' cargo +stable install wasm-bindgen-cli --version 0.2.123 --locked
+      - run: bash dev/how-far-browser/build.sh
+      - run: cargo +stable build --manifest-path dev/how-far-wasm/Cargo.toml --target wasm32-unknown-unknown
+      - name: Browser tests with real workers and shared Wasm memory
+        working-directory: dev/how-far-browser
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium webkit
+          npm test
+
+  # ==========================================================================
+  # Dependency audit — licenses and advisories
+  # ==========================================================================
+  deny:
+    name: Deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@cargo-deny
+
+      - name: Check advisories
+        run: cargo deny check advisories
+
+      - name: Check licenses
+        run: cargo deny check licenses
+
+      - name: Check bans
+        run: cargo deny check bans
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build docs
+        run: cargo doc --workspace --all-features --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Generate coverage
+        run: cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          fail_ci_if_error: false

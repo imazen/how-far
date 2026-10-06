@@ -1,0 +1,19 @@
+[package]
+name = "how-far-wasm-probe"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+how-far = { path = "../../crates/how-far" }
+almost-enough = "0.4.4"
+how-far-along = { path = "../../crates/how-far-along" }
+
+# enough::IsStop (imazen/enough#40) is unreleased; see the workspace Cargo.toml.
+[patch.crates-io]
+enough = { git = "https://github.com/imazen/enough", rev = "e1708929608296eb12d7ed2170e112c865ba7230" }
+almost-enough = { git = "https://github.com/imazen/enough", rev = "e1708929608296eb12d7ed2170e112c865ba7230" }
