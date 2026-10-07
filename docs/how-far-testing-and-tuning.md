@@ -167,7 +167,11 @@ units cost about the same, so such a phase's bar runs fast and then stalls, or
 the reverse. If the change comes from the work itself, split the phase into
 stages where it changes and weight them by the measured times; if it comes
 from the input, report a unit that tracks cost, such as bytes or pixels.
-Setup before the first report counts toward the first quarter.
+The first quarter runs from the span's start, which for a phase measured by
+`DiagnosticPulse` is its first activity, so setup before that is not counted.
+A quarter whose reports all landed in one clock reading counts as the fastest
+possible, not as missing evidence. A report that read the clock before reports
+already recorded (a worker preempted on the way) still counts in its quarter.
 
 ### Stages a phase could declare
 
