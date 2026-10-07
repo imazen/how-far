@@ -72,7 +72,8 @@ pub struct Options {
     /// A task whose slowest quarter of reported units took at least this many
     /// times as long as its fastest gets [`Kind::UnevenPace`] advice. It needs
     /// report timing, at least 8 reports, and `minimum_stage_wall` of wall
-    /// time. Default 4.
+    /// time. A fastest quarter under the clock's resolution counts as zero, so
+    /// any slower quarter qualifies. Default 4.
     pub uneven_pace_ratio: f64,
 }
 impl Default for Options {
@@ -710,14 +711,15 @@ impl Trace {
                 let q = &pace.quarters;
                 let fastest = q[0].min(q[1]).min(q[2]).min(q[3]);
                 let slowest = q[0].max(q[1]).max(q[2]).max(q[3]);
-                if !fastest.is_zero()
+                // A fastest quarter under the clock's resolution (reports in
+                // one tick) is the strongest contrast, not missing evidence.
+                if !slowest.is_zero()
                     && slowest.as_secs_f64() >= fastest.as_secs_f64() * options.uneven_pace_ratio
                 {
                     findings.push(finding(Kind::UnevenPace, format!(
-                            "task {:?}: the quarters of its {} units took {:.2}, {:.2}, {:.2} and {:.2} ms; the slowest took {:.1} times as long as the fastest",
-                            span.task, span.stats.units, ms(q[0]), ms(q[1]), ms(q[2]), ms(q[3]),
-                            slowest.as_secs_f64() / fastest.as_secs_f64()
-                        ), "Progress, and display smoothing between reports, assume a phase's units cost about the same. If the change comes from the work itself (a different step), split the phase into stages where it changes, weighted by these times. If it comes from the input, report a unit that tracks the cost, such as bytes or pixels rather than items. Setup before the first report counts toward the first quarter."));
+                            "task {:?}: the quarters of its {} units took {:.2}, {:.2}, {:.2} and {:.2} ms",
+                            span.task, span.stats.units, ms(q[0]), ms(q[1]), ms(q[2]), ms(q[3])
+                        ), "Progress, and display smoothing between reports, assume a phase's units cost about the same. If the change comes from the work itself (a different step), split the phase into stages where it changes, weighted by these times. If it comes from the input, report a unit that tracks the cost, such as bytes or pixels rather than items. The first quarter runs from the span's start, which for a phase measured by DiagnosticPulse is its first activity."));
                 }
             }
             let seconds = span.elapsed().as_secs_f64();
