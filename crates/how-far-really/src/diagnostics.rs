@@ -1136,6 +1136,8 @@ fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
     };
     let order = sorted_indices(sites.len(), &|a, b| window(a).cmp(&window(b)));
     let mut found: Vec<Stretch> = Vec::new();
+    // Time ending at outer-loop locations, left out of the stretches.
+    let mut omitted = Duration::ZERO;
     let (mut last_site, mut last_call) = (usize::MAX, span.start);
     for &i in &order {
         let site = &sites[i];
@@ -1162,6 +1164,7 @@ fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
             units: site.units,
         };
         if count > 1 && site.time < covered {
+            omitted += site.time;
             continue;
         }
         let mut k = 0;
@@ -1221,10 +1224,19 @@ fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
         shares.push(stretch.time.as_secs_f64() / total.as_secs_f64());
     }
     let weights = percent_weights(&shares);
-    let evidence = format!(
-        "task {:?}: its checkpoints ran in {kept} stretches, one after another; the sample code lists them with this run's shares of time",
-        span.task
-    );
+    let evidence = if omitted.is_zero() {
+        format!(
+            "task {:?}: its checkpoints ran in {kept} stretches, one after another; the sample code lists them with this run's shares of time",
+            span.task
+        )
+    } else {
+        format!(
+            "task {:?}: its checkpoints ran in {kept} stretches, one after another; {:.1} ms ({:.0}%) of the timed intervals ended at locations spanning several stretches (outer loops), and the weights spread that time over the stretches in proportion",
+            span.task,
+            ms(omitted),
+            100.0 * omitted.as_secs_f64() / (total + omitted).as_secs_f64()
+        )
+    };
     let mut code = String::from("Stages::new(pulse, &[\n");
     for k in 0..kept {
         let stretch = &stretches[k];
@@ -1240,29 +1252,31 @@ fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
             site.file,
             site.line
         );
-        let (total, count, checks, note) = if tail {
-            ("Exact", 1, 0, "checks: add checks and units here")
-        } else if stretch.units > 0 {
-            ("Estimated", stretch.units, stretch.units, "units reported")
+        let _ = if tail {
+            writeln!(
+                code,
+                "    PhaseSpec::new({name:?}, {}, Total::Exact(1)), // {start:.1} to {end:.1} ms after the last timed check or report: add checks and units here",
+                weights[k]
+            )
         } else {
-            (
-                "Estimated",
-                stretch.checks,
-                stretch.checks,
-                "checks: report a unit per check",
+            let (count, note) = if stretch.units > 0 {
+                (stretch.units, "units reported")
+            } else {
+                (stretch.checks, "checks: report a unit per check")
+            };
+            writeln!(
+                code,
+                "    PhaseSpec::new({name:?}, {}, Total::Estimated({count})), // calls {start:.1} to {end:.1} ms; {:.1} ms of intervals end at them; {count} {note}",
+                weights[k],
+                ms(stretch.time)
             )
         };
-        let _ = writeln!(
-            code,
-            "    PhaseSpec::new({name:?}, {}, Total::{total}({count})), // {start:.1} to {end:.1} ms, {checks} {note}",
-            weights[k]
-        );
     }
     code.push_str("])");
     Some(Finding {
         kind: Kind::SuggestedStages,
         evidence,
-        advice: "Declaring these as stages (Stages or Phases) lets the bar, and any smoothing of it, follow each part's own pace, and names each part in diagnostics. Give each stage a unit it can report, such as the loop iterations behind its checks. Locations whose calls span several stretches (outer loops) are left out. The weights are one run's shares of time: check them across inputs before relying on them.".into(),
+        advice: "Declaring these as stages (Stages or Phases) lets the bar, and any smoothing of it, follow each part's own pace, and names each part in diagnostics. Give each stage a unit it can report, such as the loop iterations behind its checks. Each range is when a stretch's locations were called; the intervals its weight counts end at those calls, so its work starts before its range (setup before a first check counts toward the first stretch). Locations whose calls span several stretches (outer loops) are left out of the stretches and their time is spread over them. The weights are one run's shares of time: check them across inputs before relying on them.".into(),
         sample_code: Some(code),
     })
 }

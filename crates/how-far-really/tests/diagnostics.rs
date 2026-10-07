@@ -972,10 +972,10 @@ fn checkpoints_in_separate_stretches_suggest_stages_weighted_by_time() {
     let file = file!();
     let code = found.sample_code.unwrap();
     assert!(code.contains(&format!(
-        "PhaseSpec::new(\"{file}:{prepass}\", 25, Total::Estimated(10)), // 1.0 to 10.0 ms, 10 checks"
+        "PhaseSpec::new(\"{file}:{prepass}\", 25, Total::Estimated(10)), // calls 1.0 to 10.0 ms; 10.0 ms of intervals end at them; 10 checks"
     )), "{code}");
     assert!(code.contains(&format!(
-        "PhaseSpec::new(\"{file}:{main}\", 75, Total::Estimated(10)), // 13.0 to 40.0 ms, 10 checks"
+        "PhaseSpec::new(\"{file}:{main}\", 75, Total::Estimated(10)), // calls 13.0 to 40.0 ms; 30.0 ms of intervals end at them; 10 checks"
     )), "{code}");
     let site = &trace.spans[0].stats.sites[0];
     assert_eq!((site.time, site.active), (ms(10), Some((ms(1), ms(10)))));
@@ -1082,10 +1082,10 @@ fn time_after_the_last_check_is_a_stage_of_its_own() {
         .unwrap();
     let file = file!();
     assert!(code.contains(&format!(
-        "PhaseSpec::new(\"{file}:{line}\", 33, Total::Estimated(20)), // 1.0 to 20.0 ms, 20 checks"
+        "PhaseSpec::new(\"{file}:{line}\", 33, Total::Estimated(20)), // calls 1.0 to 20.0 ms; 20.0 ms of intervals end at them; 20 checks"
     )), "{code}");
     assert!(code.contains(&format!(
-        "PhaseSpec::new(\"after {file}:{line}\", 67, Total::Exact(1)), // 20.0 to 60.0 ms, 0 checks: add checks and units here"
+        "PhaseSpec::new(\"after {file}:{line}\", 67, Total::Exact(1)), // 20.0 to 60.0 ms after the last timed check or report: add checks and units here"
     )), "{code}");
 }
 
@@ -1135,10 +1135,14 @@ fn a_spanning_location_lighter_than_its_stretches_is_left_out_whatever_its_size(
         }
     }
     span.finish(Outcome::Succeeded);
-    let code = find(&profiler.snapshot(), Kind::SuggestedStages)
-        .unwrap()
-        .sample_code
-        .unwrap();
+    let found = find(&profiler.snapshot(), Kind::SuggestedStages).unwrap();
+    // H's 11 ms are left out of the stretches but accounted for.
+    assert!(
+        found.evidence.contains("11.0 ms (37%)"),
+        "{}",
+        found.evidence
+    );
+    let code = found.sample_code.unwrap();
     let file = file!();
     assert!(
         code.contains(&format!("PhaseSpec::new(\"{file}:{a}\", 47,")),

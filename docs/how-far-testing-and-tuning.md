@@ -190,7 +190,12 @@ its own, named after that check, since nothing in it can be stopped or
 reported. A stretch under `Options::negligible_stage_share` of the time joins
 its neighbor. The sample code lists one `PhaseSpec` per stretch, named by the file
 and line of its busiest location, weighted by its share of the time, with
-the units it reported (or its checks) as an estimated total. Locations that
+the units it reported (or its checks) as an estimated total. Time ending at
+an outer loop's location is spread over the stretches in proportion, and the
+evidence says how much. Each comment's range is when the stretch's locations
+were called: the intervals its weight counts end at those calls, so a stage's
+work starts before its range, as setup before a first check does. The final
+stage starts at the last timed check or report. Locations that
 alternate inside one loop form a single stretch, so they never suggest a
 split. One run gives candidates; check the weights across inputs.
 
