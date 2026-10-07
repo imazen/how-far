@@ -327,3 +327,38 @@ fn the_same_or_an_earlier_time_holds_the_display() {
     near(at(&mut smooth, &observer, 150), shown);
     near(at(&mut smooth, &observer, 120), shown);
 }
+
+#[test]
+fn a_display_already_shown_holds_after_a_smaller_report() {
+    let mut job = Phase::new("rows", Total::Exact(1000));
+    job.start().unwrap();
+    let (reporter, observer) = (job.reporter(), job.observer());
+    let mut smooth = ProgressSmoother::new();
+    at(&mut smooth, &observer, 0);
+    reporter.advance(100);
+    at(&mut smooth, &observer, 100);
+    // A poll during the stall extrapolates one change of 100 ahead.
+    near(at(&mut smooth, &observer, 200), 0.2);
+    // A change of 1 lowers the bound to 102, but what was shown holds.
+    reporter.advance(1);
+    near(at(&mut smooth, &observer, 201), 0.2);
+    near(at(&mut smooth, &observer, 400), 0.2);
+    // It moves again once the work passes it.
+    reporter.advance(199);
+    near(at(&mut smooth, &observer, 500), 0.3);
+}
+
+#[test]
+fn extrapolation_stays_below_one_at_totals_beyond_f64_precision() {
+    let total = 1_u64 << 53;
+    let mut job = Phase::new("bytes", Total::Exact(total));
+    job.start().unwrap();
+    let (reporter, observer) = (job.reporter(), job.observer());
+    let mut smooth = ProgressSmoother::new();
+    at(&mut smooth, &observer, 0);
+    reporter.advance(total - 1);
+    at(&mut smooth, &observer, 100);
+    assert!(at(&mut smooth, &observer, 200) < 1.0);
+    reporter.advance(1);
+    near(at(&mut smooth, &observer, 300), 1.0);
+}

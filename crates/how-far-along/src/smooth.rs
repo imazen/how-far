@@ -4,6 +4,9 @@ use crate::{NodeId, Snapshot, Status, Total};
 use alloc::vec::Vec;
 use core::time::Duration;
 
+/// The largest `f64` below 1.
+const BELOW_ONE: f64 = 1.0 - f64::EPSILON / 2.0;
+
 /// Smooths a polled tree's fraction between reports, for display.
 ///
 /// A library reports at its own granularity, and should not be asked to
@@ -19,13 +22,16 @@ use core::time::Duration;
 ///
 /// - Between reports a running stage moves at its own average pace, at most
 ///   the latest change past its recorded count and at most half the work it
-///   has left, so extrapolation alone never completes a stage. A shorter gap
+///   has left, so extrapolation alone never completes a stage: the display
+///   stays below 1 until the count reaches the total. A shorter gap
 ///   between changes sets the pace at once; a longer one, such as a stall,
 ///   moves it a quarter of the way.
 /// - Each stage keeps its own pace, so a fast stage followed by a slow one is
 ///   not extrapolated at the fast pace. A stage that has not yet been seen to
 ///   change has no pace and shows its count.
 /// - While a stage runs under the same total, its display never goes back.
+///   After a report smaller than the one before it, a display already shown
+///   can stay above the new bound until the work catches up.
 /// - Recorded outcomes win. A finished stage shows what the snapshot records,
 ///   so a stage that fails or is cancelled steps the display back to the work
 ///   it did, and a revised total starts the stage over from its count.
@@ -171,7 +177,12 @@ impl Pace {
                 .min(self.last_step)
                 .min((total - estimate) / 2.0);
         }
-        let fraction = (estimate / total).min(1.0);
+        let mut fraction = (estimate / total).min(1.0);
+        if self.count < self.total {
+            // Only recorded work completes a stage, even where a huge total
+            // rounds the estimate up to 1.
+            fraction = fraction.min(BELOW_ONE);
+        }
         self.shown = self.shown.max(fraction);
         self.shown
     }
