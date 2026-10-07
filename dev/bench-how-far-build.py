@@ -22,9 +22,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-# enough::AsStopReason is unreleased (imazen/enough#40); see the workspace Cargo.toml.
-ENOUGH_REV = "7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e"
-
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--runs", type=int, default=3, help="perf samples per measurement")
 parser.add_argument("--ir-budget", type=int, default=120, help="IR lines per call site")
@@ -97,11 +94,6 @@ def perf_instructions(argv, cwd):
     return int(next(l for l in out.stderr.splitlines() if "instructions" in l).split(",")[0])
 
 
-# enough::AsStopReason is unreleased (imazen/enough#40): every generated workspace
-# takes enough from that commit, as the repository's own Cargo.toml does.
-ENOUGH_PATCH = ('[patch.crates-io]\nenough = { git = "https://github.com/imazen/enough", '
-                f'rev = "{ENOUGH_REV}" }}\n')
-
 with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
     tmp = Path(tmp)
     for name, source in PROBES.items():
@@ -109,18 +101,17 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
         (tmp / name / "src" / "lib.rs").write_text(source)
         (tmp / name / "Cargo.toml").write_text(
             f'[package]\nname = "{name}"\nversion = "0.0.0"\nedition = "2024"\n[dependencies]\n'
-            f'enough = {{ version = "0.4.4", default-features = false, features = ["alloc"] }}\n'
+            f'enough = {{ version = "0.4.5", default-features = false, features = ["alloc"] }}\n'
             f'how-far = {{ path = "{root}/crates/how-far" }}\n')
     (tmp / "Cargo.toml").write_text(
-        "[workspace]\nresolver = \"3\"\nmembers = [" + ", ".join(f'"{n}"' for n in PROBES) + "]\n"
-        + ENOUGH_PATCH)
+        "[workspace]\nresolver = \"3\"\nmembers = [" + ", ".join(f'"{n}"' for n in PROBES) + "]\n")
     env = dict(os.environ, CARGO_TARGET_DIR=str(tmp / "target"), CARGO_INCREMENTAL="0")
     for name, crate in ALONG.items():
         (tmp / "along" / name / "src").mkdir(parents=True)
         (tmp / "along" / name / "src" / "lib.rs").write_text("")
         (tmp / "along" / name / "Cargo.toml").write_text(
             f'[package]\nname = "along-{name}"\nversion = "0.0.0"\nedition = "2024"\n[dependencies]\n'
-            f'{crate} = {{ path = "{root}/crates/{crate}" }}\n[workspace]\n' + ENOUGH_PATCH)
+            f'{crate} = {{ path = "{root}/crates/{crate}" }}\n[workspace]\n')
     commands = {}
     for profile, cargo_args in PROFILES.items():
         for cwd, tag in [(tmp, ""), *((tmp / "along" / name, f"/{name}") for name in ALONG)]:
