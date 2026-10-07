@@ -6,26 +6,26 @@
 # impls omitted; re-export duplicates annotated `[also: path]`.
 # DO NOT EDIT BY HAND — commit regenerated changes with the code.
 #
-# files: how-far-really.txt 172 lines (supported surface) | how-far-really.features.txt 0 added (features: none) | how-far-really.internal.txt 11 lines (11 hidden + 0 excluded-feature)
+# files: how-far-really.txt 178 lines (supported surface) | how-far-really.features.txt 0 added (features: none) | how-far-really.internal.txt 11 lines (11 hidden + 0 excluded-feature)
 
 ## summary
 #
 #   pub modules                                 3
-#   pub types (struct/enum/trait/alias)        20
+#   pub types (struct/enum/trait/alias)        21
 #   pub consts/statics                          1
 #   inherent methods                           28
-#   struct fields                              71
-#   enum variants                              24
-#   trait roster entries (type × trait)        75
-#   auto-trait-complete types                  15
+#   struct fields                              74
+#   enum variants                              25
+#   trait roster entries (type × trait)        77
+#   auto-trait-complete types                  16
 #   auto-trait exceptions                       4
 #
 # per-module pub lines:
 #   (root)                            4
-#   diagnostics                      45
-#   profile                          98
+#   diagnostics                      47
+#   profile                         101
 
-## items (147 lines)
+## items (152 lines)
 
 pub mod how_far_really
 pub mod diagnostics
@@ -45,6 +45,7 @@ pub diagnostics::Kind::ReportGap
 pub diagnostics::Kind::StageWeights
 pub diagnostics::Kind::StopGap
 pub diagnostics::Kind::StopOutcomeMismatch
+pub diagnostics::Kind::UnevenPace
 pub diagnostics::Kind::UnobservedCancellation
 #[non_exhaustive] pub enum diagnostics::Problem
 pub diagnostics::Problem::Plan(how_far::pulse::PlanError)
@@ -73,6 +74,7 @@ pub diagnostics::Options::negligible_stage_share: f64
 pub diagnostics::Options::report_calls_per_second: f64
 pub diagnostics::Options::report_gap_target: core::time::Duration
 pub diagnostics::Options::stop_gap_target: core::time::Duration
+pub diagnostics::Options::uneven_pace_ratio: f64
 pub diagnostics::Options::weight_difference: f64
 pub mod profile
 #[non_exhaustive] pub enum profile::SpanKind
@@ -151,6 +153,7 @@ pub profile::Stats::sites: alloc::vec::Vec<profile::SiteStats>
 pub profile::Stats::stop_reason: core::option::Option<enough::reason::StopReason>
 pub profile::Stats::stopped_at: core::option::Option<core::time::Duration>
 pub profile::Stats::unattributed_calls: u64
+pub profile::Stats::unit_pace: core::option::Option<profile::UnitPace>
 pub profile::Stats::units: u64
 pub struct profile::StdClock(_)
 pub fn profile::StdClock::new() -> Self
@@ -172,10 +175,12 @@ pub fn profile::Trace::overlap(&self, &[profile::SpanId]) -> core::option::Optio
 pub fn profile::Trace::with_progress(self, how_far_along::tree::Snapshot) -> Self
 pub fn profile::Trace::write_json(&self, &mut impl core::fmt::Write) -> core::fmt::Result
 pub fn profile::Trace::diagnose(&self, &diagnostics::Options) -> alloc::vec::Vec<diagnostics::Finding>
+#[non_exhaustive] pub struct profile::UnitPace
+pub profile::UnitPace::quarters: [core::time::Duration; 4]
 pub trait profile::Clock: core::marker::Send + core::marker::Sync
 pub fn profile::Clock::now(&self) -> core::time::Duration
 
-## trait impls (20 types)
+## trait impls (21 types)
 
 alloc::sync::Arc<C>: profile::Clock
 diagnostics::DiagnosticPulse: Debug, enough::Stop, how_far::completion::Complete, how_far::pulse::Pulse, how_far::report::Report
@@ -197,10 +202,11 @@ profile::SpanRecord: Clone, Debug
 profile::Stats: Clone, Debug, Default
 profile::StdClock: Clone, Copy, Debug, Default, profile::Clock
 profile::Trace: Clone, Debug, Display
+profile::UnitPace: Clone, Debug
 
 ## auto traits
 
-15 types implement all of: Freeze, RefUnwindSafe, Send, Sync, Unpin, UnwindSafe
+16 types implement all of: Freeze, RefUnwindSafe, Send, Sync, Unpin, UnwindSafe
 diagnostics::DiagnosticPulse: !RefUnwindSafe !UnwindSafe
 profile::Instrumented<T>: !Freeze !RefUnwindSafe !Send !Sync !Unpin !UnwindSafe
 profile::Profiler: !RefUnwindSafe !UnwindSafe

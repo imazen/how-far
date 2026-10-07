@@ -34,7 +34,7 @@ fn encode(rows: &[u8], pulse: &dyn Pulse) -> Result<(), StopReason> {
 | --- | --- | --- |
 | [`how-far`](crates/how-far/README.md) | libraries | The `&dyn Pulse` interface: cancellation, completed units, weighted phases. `no_std + alloc`, depends only on `enough`. |
 | [`how-far-along`](crates/how-far-along/README.md) | applications | Progress trees, snapshots, pollers, JSON, optional checkpoint callbacks. `no_std + alloc`. |
-| [`how-far-really`](crates/how-far-really/README.md) | tests and tuning | Opt-in profiling of checkpoint cadence and diagnostics of protocol misuse and stage weights. `std`. |
+| [`how-far-really`](crates/how-far-really/README.md) | tests and tuning | Opt-in profiling of checkpoint cadence and diagnostics of protocol misuse, stage weights and uneven unit pace. `std`. |
 
 All three need Rust 1.88.
 

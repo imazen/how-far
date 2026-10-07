@@ -4,7 +4,8 @@
 //! the library, then call [`Trace::diagnose`] on the profiler's trace. The
 //! findings point at source lines: long stretches without a cancellation
 //! check, long stretches without a report, very hot call sites, slow or
-//! irregular callbacks, and stage weights that differ from measured time.
+//! irregular callbacks, stage weights that differ from measured time, and
+//! phases whose units slow down or speed up partway.
 //! Code that uses only a stop policy can be measured with
 //! [`Span::instrument`](crate::profile::Span::instrument) and diagnosed the
 //! same way.
@@ -68,6 +69,11 @@ pub struct Options {
     /// may not be for the next). It keeps its declared weight, as long as the
     /// stages held this way together own at most half the bar.
     pub negligible_stage_share: f64,
+    /// A task whose slowest quarter of reported units took at least this many
+    /// times as long as its fastest gets [`Kind::UnevenPace`] advice. It needs
+    /// report timing, at least 8 reports, and `minimum_stage_wall` of wall
+    /// time. Default 4.
+    pub uneven_pace_ratio: f64,
 }
 impl Default for Options {
     fn default() -> Self {
@@ -82,6 +88,7 @@ impl Default for Options {
             minimum_stage_wall: Duration::from_millis(30),
             weight_difference: 0.15,
             negligible_stage_share: 0.02,
+            uneven_pace_ratio: 4.0,
         }
     }
 }
@@ -120,6 +127,9 @@ pub enum Kind {
     CallbackInterval,
     /// Sequential stages took very different shares of time than their weights.
     StageWeights,
+    /// A task's units took very different times in different parts of its
+    /// run, so its progress, and any smoothing of it, misjudge the rest.
+    UnevenPace,
     /// Dropped spans, saturated counts, or clock trouble limit the advice.
     IncompleteEvidence,
 }
@@ -691,6 +701,24 @@ impl Trace {
                     } else {
                         "No stop check at the target cadence was recorded inside this interval either. Consider reporting completed units and checking cancellation here; step(n) does both."
                     }));
+            }
+            if counts_units(self, span)
+                && span.stats.reports >= 8
+                && span.elapsed() >= options.minimum_stage_wall
+                && let Some(pace) = &span.stats.unit_pace
+            {
+                let q = &pace.quarters;
+                let fastest = q[0].min(q[1]).min(q[2]).min(q[3]);
+                let slowest = q[0].max(q[1]).max(q[2]).max(q[3]);
+                if !fastest.is_zero()
+                    && slowest.as_secs_f64() >= fastest.as_secs_f64() * options.uneven_pace_ratio
+                {
+                    findings.push(finding(Kind::UnevenPace, format!(
+                            "task {:?}: the quarters of its {} units took {:.2}, {:.2}, {:.2} and {:.2} ms; the slowest took {:.1} times as long as the fastest",
+                            span.task, span.stats.units, ms(q[0]), ms(q[1]), ms(q[2]), ms(q[3]),
+                            slowest.as_secs_f64() / fastest.as_secs_f64()
+                        ), "Progress, and display smoothing between reports, assume a phase's units cost about the same. If the change comes from the work itself (a different step), split the phase into stages where it changes, weighted by these times. If it comes from the input, report a unit that tracks the cost, such as bytes or pixels rather than items. Setup before the first report counts toward the first quarter."));
+                }
             }
             let seconds = span.elapsed().as_secs_f64();
             if seconds > 0.0 {

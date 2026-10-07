@@ -884,3 +884,62 @@ fn callback_cadence_ignores_idle_time_between_operations() {
     let kinds = kinds(&profiler.snapshot(), &Options::default());
     assert!(!kinds.contains(&Kind::CallbackInterval), "{kinds:?}");
 }
+
+fn rows(profiler: &Profiler, clock: &ManualClock, gaps: impl Fn(u64) -> u64) -> DiagnosticPulse {
+    let measured = DiagnosticPulse::new(
+        PulseTree::new(Phase::new("rows", Total::Exact(40)), Unstoppable),
+        profiler,
+    );
+    let mut t = 0;
+    for row in 0..40 {
+        t += gaps(row);
+        clock.set(t);
+        measured.step(1).unwrap();
+    }
+    measured
+}
+
+#[test]
+fn a_phase_whose_units_slow_down_partway_gets_uneven_pace_advice() {
+    let clock = ManualClock::default();
+    let profiler = Profiler::new(clock.clone(), 4);
+    profiler.set_report_timing(true);
+    // 20 rows at 1 ms each, then 20 at 10 ms each: more reports than the
+    // span keeps samples of.
+    let measured = rows(&profiler, &clock, |row| if row < 20 { 1 } else { 10 });
+    let (trace, kinds) = diagnose(measured, &profiler);
+    assert!(kinds.contains(&Kind::UnevenPace));
+    // The phase's span starts at its first step, at 1 ms.
+    assert_eq!(trace.spans[0].start, ms(1));
+    let pace = trace.spans[0].stats.unit_pace.as_ref().unwrap();
+    assert_eq!(pace.quarters, [ms(9), ms(10), ms(100), ms(100)]);
+    let mut json = String::new();
+    trace.write_json(&mut json).unwrap();
+    assert!(json.contains("\"unit_pace\":[\"9000000\",\"10000000\",\"100000000\",\"100000000\"]"));
+}
+
+#[test]
+fn an_evenly_paced_phase_gets_no_uneven_pace_advice() {
+    let clock = ManualClock::default();
+    let profiler = Profiler::new(clock.clone(), 4);
+    profiler.set_report_timing(true);
+    let measured = rows(&profiler, &clock, |_| 1);
+    let (trace, kinds) = diagnose(measured, &profiler);
+    assert!(!kinds.contains(&Kind::UnevenPace));
+    let pace = trace.spans[0].stats.unit_pace.as_ref().unwrap();
+    assert_eq!(pace.quarters, [ms(9), ms(10), ms(10), ms(10)]);
+
+    // A bare span without report timing samples nothing.
+    let clock = ManualClock::default();
+    let profiler = Profiler::new(clock.clone(), 4);
+    let span = profiler.span(None, "rows", SpanKind::Work);
+    let work = span.instrument(ProgressWithStop::new(Unstoppable, NoReport));
+    for row in 0..40 {
+        clock.set(if row < 20 { row } else { 20 + 10 * (row - 20) });
+        work.step(1).unwrap();
+    }
+    span.finish(Outcome::Succeeded);
+    let trace = profiler.snapshot();
+    assert!(find(&trace, Kind::UnevenPace).is_none());
+    assert!(trace.spans[0].stats.unit_pace.is_none());
+}
