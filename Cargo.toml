@@ -20,17 +20,9 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/imazen/how-far"
 
 [workspace.dependencies]
-enough = { version = "0.4.4", default-features = false }
-almost-enough = { version = "0.4.4", features = ["std"] }
+enough = { version = "0.4.5", default-features = false }
+almost-enough = { version = "0.4.5", features = ["std"] }
 zenbench = "0.1.6"
 how-far = { version = "0.1.0", path = "crates/how-far" }
 how-far-along = { version = "0.1.0", path = "crates/how-far-along", default-features = false }
 how-far-really = { version = "0.1.0", path = "crates/how-far-really" }
-
-# how-far needs `enough::AsStopReason` (imazen/enough#40), which is on enough's
-# main but in no release yet. Until it is published, take enough and
-# almost-enough from that main commit; then drop this table and raise the
-# requirements above.
-[patch.crates-io]
-enough = { git = "https://github.com/imazen/enough", rev = "7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e" }
-almost-enough = { git = "https://github.com/imazen/enough", rev = "7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e" }

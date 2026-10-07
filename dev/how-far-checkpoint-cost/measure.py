@@ -53,7 +53,6 @@ STOPS = [
     ("timeout", "`WithTimeout<Stopper>`"),
     ("debounced", "`DebouncedTimeout<Stopper>`"),
     ("token", "`StopToken` of a `Stopper`"),
-    ("boxed", "`BoxedStop` of a `Stopper`"),
     ("poll-meter", "`PollMeter<Stopper>`"),
     ("tokio", "`TokioStop`"),
 ]

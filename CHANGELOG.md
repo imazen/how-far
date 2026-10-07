@@ -6,12 +6,9 @@
 
 <!-- Breaks that will ship together in one leading-digit bump. None queued. -->
 
-### Release ordering
+### Changed
 
-- `how-far` uses `enough::AsStopReason` (imazen/enough#40), which no released
-  `enough` has. Publish that `enough` first, then drop the workspace's
-  `[patch.crates-io]` table and raise the `enough` requirement in the same
-  commit.
+- Requires `enough` and `almost-enough` 0.4.5 from crates.io, the first releases with `enough::AsStopReason`, instead of a git commit of enough's main
 
 ### Added
 
