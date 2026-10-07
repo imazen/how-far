@@ -46,9 +46,8 @@ All three need Rust 1.88.
 
 ## Status
 
-Not yet published. `how-far` uses `enough::AsStopReason`, which is on
-`enough`'s main (imazen/enough#40) but in no release yet; until it is, the
-workspace takes `enough` from that commit of its main.
+Not yet published. `how-far` needs `enough` 0.4.5 or later, the first release
+with `enough::AsStopReason`.
 
 ## License
 
