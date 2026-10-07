@@ -1,83 +1,125 @@
 # Stages zen codecs could declare — 2026-10-07
 
-Where each operation checks its `Stop`, which crate that code is in, and how its
-work splits into stages. Every check was timed by how-far-really's profiler with
-the `stage-suggestions` feature, and `SuggestedStages` proposed stages from when
-each source line was active.
+Where each operation checks its `Stop`, which crate those checks are in, and
+which stages `SuggestedStages` proposes from when each source line was active.
+Every check was timed by how-far-really's profiler with the
+`stage-suggestions` feature.
 
 - Harness: `dev/stage-suggestions` (cases from imazen/enough's
-  `dev/cancel-latency`, deterministic synthetic inputs), at the commit that adds
-  this record, on top of `fd08d23`. Command: `cargo build --release`, then
-  `target/release/stage-suggestions --json DIR`. Each span covers only the
-  operation: it starts after input preparation and ends before the outputs are
-  dropped. Raw traces: `stage-suggestions-2026-10-07/*.json`.
+  `dev/cancel-latency`, deterministic synthetic inputs), at the commit that
+  adds this version of the record. Each span covers only the operation: it
+  starts after input preparation and ends before the outputs are dropped. Each
+  trace's metadata names its case, codec and operation.
+- Runs: `stage-suggestions --json run-1` (all 13 cases) and
+  `stage-suggestions --json run-2 <11 cases>` (all but the two longest), one
+  after the other. Traces in `stage-suggestions-2026-10-07/run-1` and `run-2`,
+  console output in `run-1.log` and `run-2.log`. The tables below come from
+  `dev/stage-suggestions/summarize.py traces run-1` and
+  `summarize.py compare run-1.log run-2.log`.
 - Codecs, built from local checkouts: zenflate `83b1bdd` (0.4.0, used by the
   zenflate cases), zenpng `27393ee`, zenjpeg `d06d19ae` (one uncommitted file,
   an example, is not built for a dependency), zenwebp `ee9dfc5`, zengif
   `c194dcc`, zenquant `88761c7`, zenbitmaps `edc6ed5`, butteraugli `b143f2b`,
   fast-ssim2 `73f938d`, zenzop `214556d`. zenpng compresses through zenflate
   0.3.6 from crates.io (it requires `^0.3.2`). zencodec `2031094` and zenpixels
-  `789d69d` come from git, as zenpng pins them. zenavif was left out: its
-  checkout holds uncommitted encoder work.
-- Host `r5900xt` (Ryzen 9 5900XT, Zen 3), rustc 1.99.0, release build. Every
-  check takes a lock and reads the clock, so wall times include that cost;
+  `789d69d` come from git, as zenpng pins them. The harness's lockfile is not
+  committed; zenanalyze comes from git without a pinned revision. zenavif was
+  left out: its checkout holds uncommitted encoder work.
+- Host `r5900xt` (Ryzen 9 5900XT, Zen 3), rustc 1.99.0, release build. Other
+  jobs shared the box (peak load 22 of 32 threads in run 1), so wall times are
+  not comparable across runs. Every check takes a lock and reads the clock;
   uninstrumented times were not measured.
 
-## By operation
+## What the numbers mean
 
-From the full run. Shares are of the operation's wall time. "Unchecked" is time
-with no check at all, so nothing in it can be cancelled or reported.
+Three different quantities appear below, and they are not interchangeable:
 
-| Operation | Wall | Checks | Crates | Stages found | Best split |
-| --- | ---: | ---: | --- | --- | --- |
-| zenflate effort 200, 16 MB | 483 s | 201,285 | zenflate | none: one loop throughout | one stage; units = optimal-parse iterations per block (`full_optimal.rs:1096` is 98%) |
-| zenflate effort 200, 256 KB | 7.5 s | 3,265 | zenflate | none | as above (93% at `full_optimal.rs:1096`) |
-| zenpng Maniac encode, 2048² | 109 s | 1,080,787 | zenflate 91%, zenpng 9% | trial compressions 86%, filter search 3% + 11% | as found: compression trials in zenflate 0.18–87.3 s, then zenpng's filter searches (`filter.rs:361`, `:640`) |
-| zenpng decode | 37.4 ms | 2,048 | zenpng | setup 3%, rows 97% | one stage, units = rows (`decoder/mod.rs:315`, 2,047 checks) |
-| zenjpeg progressive encode, 4K | 122 ms | 271 | zenjpeg | strips 35%, then 65% unchecked | strips (`encode/streaming.rs:670`), then progressive entropy coding: **79 ms unchecked** |
-| zenjpeg progressive decode, 4K | 86.5 ms | 493 | zenjpeg | 4 | scan parse 17% (`parser/progressive.rs:229`), Huffman decode 40% (`entropy/decoder.rs:1717`, `:2131`), reconstruction 43%: **36 ms unchecked** |
-| zenwebp lossy m6, 1024² RGBA | 474 ms | 917 | zenwebp | 4 | VP8 color 18% (`vp8/mod.rs:2020`), alpha plane as VP8L 82% (`vp8l/transforms.rs:545` 72%, `:2033` 3%, `cost_model.rs:590` 7%) |
-| zenwebp lossless, 2048² | 1.31 s | 3,104 | zenwebp | 9 | transforms 68% (`transforms.rs:474`/`:545` 40%, `:751` 2%, `:1470` 26%), backward refs 13%, entropy coding 19% (`cost_model.rs` 7%, `meta_huffman.rs:856` 7%, `encode.rs:1350` 5%) |
-| zengif encode, 64 × 512² frames | 4.78 s | 22,431 | zenquant 99%, zengif 1% | 3 | global histogram 31% (zenquant `histogram.rs:184`), median cut 3%, palette and remap 66% (zenquant `lib.rs:1415`); units = frames (zengif `encoder.rs:543` checks once per frame) |
-| zenbitmaps PAM, 8K | 62.4 ms | 272 | zenbitmaps | none | one stage of rows (`pnm/encode.rs:63`) |
-| zenzop squeeze, 4 MB | 14.1 s | 601,552 | zenzop | none: the first pass is 1% | one stage; units = squeeze iterations (15, `squeeze.rs:681`), after a 142 ms greedy LZ77 pass (`lz77.rs:217`) |
-| butteraugli, 2048² | 736 ms | 2,079 | butteraugli | 2 | reference precompute 45%: `ButteraugliReference::new` takes no `Stop`, so its **333 ms run unchecked**; then `compare_with_stop`'s blur and comparison 55% (`blur.rs:453`, `malta.rs:1487`) |
-| fast-ssim2, 2048² | 660 ms | 793 | fast-ssim2 | 2 | conversion 8% (`pipeline/mod.rs:270`), then 6 scales 92%: weight scales by pixel count (1, 1/4, 1/16, …), since the same lines run at every scale |
+1. **Wall**: the span, from the operation's start to its return.
+2. **Checked intervals**: each source line's time is the intervals that *end*
+   at its calls, from the previous timed call or the span's start. A crate's
+   share is of intervals ending at that crate's checks. It is not time spent
+   inside the crate: an interval can include caller work and other crates.
+   The unchecked head (span start to the first call) is part of the first
+   line's interval; the unchecked tail (after the last call) ends at no line.
+3. **Candidate weights**: `SuggestedStages`' whole-percent weights. Time at
+   outer-loop lines that span several stretches is spread over the stretches
+   in proportion; the finding states how much that was.
+
+## Wall, unchecked time and crates (run 1)
+
+| Case | Wall ms | Checks | Unchecked head ms | Unchecked tail ms | Checked intervals by crate (% of wall) |
+| --- | ---: | ---: | ---: | ---: | --- |
+| butteraugli-2048 | 1071.6 | 2079 | 458.2 | 14.6 | butteraugli 98.6 |
+| fast-ssim2-2048 | 951.1 | 793 | 0.0 | 0.0 | fast-ssim2 100.0 |
+| zenbitmaps-pam-8k | 79.0 | 272 | 0.0 | 0.0 | zenbitmaps 100.0 |
+| zenflate-effort200-16mb | 680123.7 | 201285 | 0.6 | 36.7 | zenflate 100.0 |
+| zenflate-effort200-small | 9039.1 | 3265 | 0.2 | 1.3 | zenflate 100.0 |
+| zengif-encode-64f | 7883.7 | 22431 | 0.0 | 0.0 | zenquant 98.8, zengif 1.2 |
+| zenjpeg-decode-progressive-4k | 109.1 | 493 | 0.0 | 41.3 | zenjpeg 62.2 |
+| zenjpeg-encode-progressive-4k | 142.0 | 271 | 0.4 | 93.6 | zenjpeg 34.1 |
+| zenpng-decode-balanced | 41.9 | 2048 | 1.4 | 0.0 | zenpng 100.0 |
+| zenpng-maniac-2048 | 119428.1 | 1080787 | 45.6 | 53.5 | zenflate 90.6, zenpng 9.4 |
+| zenwebp-lossless-2048 | 2148.0 | 3104 | 38.6 | 3.1 | zenwebp 99.9 |
+| zenwebp-lossy-m6-1024 | 541.3 | 917 | 0.0 | 0.1 | zenwebp 100.0 |
+| zenzop-squeeze-enhanced-4mb | 21895.8 | 601552 | 0.8 | 37.0 | zenzop 99.8 |
+
+Three long stretches have no check at all, so nothing in them can be cancelled
+or reported. Two are tails, inside calls that take a `Stop`: zenjpeg's
+progressive encode (93.6 of 142 ms, in `encode_bytes`) and decode (41.3 of
+109 ms, in `decode`). One is a head: butteraugli's first 458 ms, in
+`ButteraugliReference::new`, which takes no `Stop` (only butteraugli's
+`compare_*_with_stop` methods do).
+
+## Candidate stages and the best split (run 1)
+
+Weights are candidate weights (quantity 3). "Outer" is the share of checked
+intervals at outer-loop lines that the weights spread over the stretches. The
+best-split column is a reading of these weights and of the source lines, not
+a measurement of each part's cost.
+
+| Case | Candidate weights | Outer | Best split |
+| --- | --- | ---: | --- |
+| zenflate effort 200, 16 MB and 256 KB | none: one loop runs throughout | — | one stage; units = optimal-parse iterations per block (`full_optimal.rs:1096` has nearly all checks) |
+| zenpng Maniac encode, 2048² | zenflate `compress/mod.rs:2099` 86, zenpng `filter.rs:361` 3, `filter.rs:640` 11 | 34% | compression trials, then filter searches; a third of the time was spread to reach these weights |
+| zenpng decode (Balanced input) | `decoder/mod.rs:298` 3, `:315` 97 | 0 | one stage, units = rows (`decoder/mod.rs:315`, 2,047 checks) |
+| zenjpeg progressive encode, 4K | strips 34 (`encode/streaming.rs:670`), after it 66 | 0 | strips, then progressive entropy coding, which needs checks |
+| zenjpeg progressive decode, 4K | `parser/progressive.rs:229` 20, `entropy/decoder.rs:1717` 10, `:2131` 31, after `parser/mod.rs:820` 39 | 2% | scan parsing, Huffman decoding, then reconstruction, which needs checks |
+| zenwebp lossy m6, 1024² RGBA | `vp8/mod.rs:2020` 22, `vp8l/transforms.rs:2033` 3, `:545` 68, `cost_model.rs:590` 7 | 7% | VP8 color, then the lossless alpha path (`vp8l`), which carries 78 of the weight; the input's alpha is a smooth wave (192 ± 60), and one input doesn't show why |
+| zenwebp lossless, 2048² | `transforms.rs:474` 2, `:545` 37, `:1470` 24, `backward_refs.rs:520` 13, `cost_model.rs:590` 4, `:686` 4, `meta_huffman.rs:856` 10, `encode.rs:1350` 6 | 27% | transforms, backward references, entropy coding |
+| zengif encode, 64 × 512² frames | zenquant `histogram.rs:184` 29, `median_cut.rs:29` 3, `lib.rs:1415` 68 | 44% | global histogram, then palette and remap; units = frames (zengif `encoder.rs:543` checks once per frame) |
+| zenbitmaps PAM, 8K, encode then decode | none | — | the case times encode and decode together; split the span before drawing conclusions about either |
+| zenzop squeeze, 4 MB | none: the greedy first pass is too small to stand alone | — | one stage; units = squeeze iterations (15 at `squeeze.rs:681`) |
+| butteraugli, 2048² | `precompute.rs:1084` 43, `blur.rs:453` 57 | 0 | reference precompute (in `new`, unchecked), then comparison |
+| fast-ssim2, 2048² | `pipeline/mod.rs:270` 9, `pipeline/simd.rs:736` 91 | 0 | conversion, then 6 scales; the same lines run at every scale, so weight scales by pixel count |
+
+`SuggestedStages` finds stages wherever an operation runs different code in
+turn, and none where one loop runs throughout. It can't split repeated work
+that runs the same lines: zengif's 64 frames, fast-ssim2's 6 scales. There the
+unit is the repetition, and a weight would come from a parameter such as
+pixels per scale. Where outer-loop time is a large share (zengif 44%, zenpng
+Maniac 34%, zenwebp lossless 27%), the weights depend on how that time is
+spread and are weak evidence.
 
 ## Repeatability
 
-A second run of the 11 shorter cases found the same stages in 8, with weights
-within 4 points. In zenwebp lossy and zengif, a stage near the 2% fold
-threshold appeared in one run and not the other (zenwebp's `backward_refs.rs`,
-zengif's `lib.rs:1769`). butteraugli, which runs its checks on several threads,
-split differently: 45% then 55% in one run, 62%, 10% and 28% in the other.
-Earlier versions of the grouping were less stable; the one used here takes
-lines in order of how long they were active, which varies less between runs
-than their shares of time.
+| Case | Run 1 | Run 2 | Same stages |
+| --- | --- | --- | --- |
+| zenflate-effort200-small | none | none | yes |
+| zenpng-decode-balanced | mod.rs:298 3, mod.rs:315 97 | mod.rs:298 8, mod.rs:315 92 | yes |
+| zenjpeg-encode-progressive-4k | streaming.rs:670 34, after streaming.rs:670 66 | streaming.rs:670 36, after streaming.rs:670 64 | yes |
+| zenjpeg-decode-progressive-4k | progressive.rs:229 20, decoder.rs:1717 10, decoder.rs:2131 31, after mod.rs:820 39 | progressive.rs:229 20, decoder.rs:1717 10, decoder.rs:2131 30, after mod.rs:820 40 | yes |
+| zenwebp-lossy-m6-1024 | mod.rs:2020 22, transforms.rs:2033 3, transforms.rs:545 68, cost_model.rs:590 7 | mod.rs:2020 18, transforms.rs:2033 3, transforms.rs:545 72, cost_model.rs:590 7 | yes |
+| zenwebp-lossless-2048 | 8 stretches | the same 8 plus `transforms.rs:751` 2 | no |
+| zengif-encode-64f | histogram.rs:184 29, median_cut.rs:29 3, lib.rs:1415 68 | lib.rs:1769 2, histogram.rs:184 30, median_cut.rs:29 3, lib.rs:1415 65 | no |
+| zenbitmaps-pam-8k | none | none | yes |
+| zenzop-squeeze-enhanced-4mb | none | none | yes |
+| butteraugli-2048 | precompute.rs:1084 43, blur.rs:453 57 | precompute.rs:1084 60, blur.rs:1807 10, malta.rs:1487 27, after precompute.rs:1667 3 | no |
+| fast-ssim2-2048 | mod.rs:270 9, simd.rs:736 91 | mod.rs:270 7, simd.rs:736 93 | yes |
 
-## What the call sites can and can't split
+8 of 11 cases found the same stages, with weights within 5 points. In zenwebp
+lossless and zengif, a stage near the 2% fold threshold appeared in one run
+only. butteraugli, which checks from several threads, split differently. Two
+runs under shared load are a small sample.
 
-`SuggestedStages` found stages wherever an operation runs different code in
-turn: zenjpeg, zenwebp, zenpng's trials and filter searches, zengif's histogram
-and palette phases, and setup before a first check. It found none, correctly,
-where one loop runs throughout (zenflate, zenzop, zenbitmaps). It can't split
-repeated work whose stages share source lines: zengif's 64 frames and
-fast-ssim2's 6 scales. There the unit is the repetition, and a weight comes
-from a parameter such as pixels per scale, which a multi-run calibration
-against registered parameters would fit.
-
-The stage after the last check found three stretches with no check at all:
-zenjpeg's progressive encode (79 ms of 122) and decode (36 ms of 86.5) at 4K,
-inside calls that take a `Stop`, and butteraugli's 333 ms in
-`ButteraugliReference::new`, which takes none (only its `compare_*_with_stop`
-methods do). Each is also a cancellation gap.
-
-zenwebp's lossy method 6 spends 82% of its time encoding the alpha plane
-losslessly. The input's alpha is a smooth wave (192 ± 60), so this is the
-method's alpha effort, not noise in the input.
-
-zenpng's Maniac encode spends 91% of its time inside zenflate, checking 993,396
-times in 109 s.
-
-Limits: synthetic inputs, one configuration per codec, and weights from wall
-time. Check them across inputs before relying on them.
+Limits: synthetic inputs, one configuration per codec, weights from wall time
+under shared load. Check them across inputs before relying on them.

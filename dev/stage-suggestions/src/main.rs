@@ -74,6 +74,9 @@ fn main() {
     {
         println!("=== {} [{}]\n  {}", case.name, case.codec, case.blurb);
         let profiler = Profiler::new(StdClock::new(), 4);
+        profiler.metadata("case", case.name);
+        profiler.metadata("codec", case.codec);
+        profiler.metadata("operation", case.blurb);
         let stop = Lazy {
             profiler: &profiler,
             task: case.name,
@@ -105,13 +108,27 @@ fn main() {
         }
         let span = &trace.spans[0];
         let wall = span.elapsed();
-        let checked: Duration = span.stats.sites.iter().map(|s| s.time).sum();
+        // Each location's time is the intervals ending at its calls; what
+        // ran after the last timed call ends at none.
+        let last = span
+            .stats
+            .sites
+            .iter()
+            .filter_map(|s| s.active.map(|a| a.1))
+            .max();
+        let first = span
+            .stats
+            .sites
+            .iter()
+            .filter_map(|s| s.active.map(|a| a.0))
+            .min();
         println!(
-            "  wall {:.1} ms, {} checks at {} locations, {:.1} ms between checks",
+            "  wall {:.1} ms, {} checks at {} locations; first call at {:.1} ms, nothing timed for the last {:.1} ms",
             ms(wall),
             span.stats.checks,
             span.stats.sites.len(),
-            ms(checked)
+            ms(first.unwrap_or(span.end).saturating_sub(span.start)),
+            ms(span.end.saturating_sub(last.unwrap_or(span.start)))
         );
         let mut options = Options::default();
         options.minimum_stage_wall = Duration::from_millis(5);
@@ -121,7 +138,7 @@ fn main() {
                 println!();
             }
         }
-        by_crate(&span.stats.sites, span.start, checked);
+        by_crate(&span.stats.sites, span.start, wall);
         println!();
     }
 }
@@ -130,8 +147,9 @@ fn ms(d: Duration) -> f64 {
     d.as_secs_f64() * 1e3
 }
 
-/// Each crate's share of the time between checks and when it was active,
-/// then its busiest locations, crates in the order they first checked.
+/// Each crate's intervals (those ending at its calls) as a share of wall
+/// time, and when it was called, then its busiest locations, crates in the
+/// order they were first called.
 fn by_crate(sites: &[SiteStats], start: Duration, total: Duration) {
     struct Crate<'a> {
         name: &'a str,
@@ -209,10 +227,11 @@ fn package_of(file: &str) -> (&str, &str) {
     else {
         return ("", file);
     };
-    let inner_start = file.len() - parts[at..].iter().map(|p| p.len() + 1).sum::<usize>() + 1;
-    let inner = &file[inner_start..];
+    // The byte offset of `parts[at]`: each earlier part and its separator.
+    let offset: usize = parts[..at].iter().map(|p| p.len() + 1).sum();
+    let inner = &file[offset..];
     if at == 0 {
-        return ("", file);
+        return ("", inner);
     }
     let mut name = parts[at - 1];
     if name.len() >= 7 && name.bytes().all(|b| b.is_ascii_hexdigit()) && at >= 2 {
@@ -225,4 +244,36 @@ fn package_of(file: &str) -> (&str, &str) {
         .windows(2)
         .position(|w| w[0] == b'-' && w[1].is_ascii_digit());
     (cut.map_or(name, |i| &name[..i]), inner)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::package_of;
+
+    #[test]
+    fn packages_come_from_the_directory_above_src() {
+        for (file, expected) in [
+            (
+                "/r/index.crates.io-1949cf8c6b5b557f/zenflate-0.3.6/src/compress/mod.rs",
+                ("zenflate", "src/compress/mod.rs"),
+            ),
+            ("/r/x264-sys-0.2.1/src/lib.rs", ("x264-sys", "src/lib.rs")),
+            (
+                "/g/checkouts/zenpng-1a2b3c4d5e6f7a8b/9f8e7d6/src/lib.rs",
+                ("zenpng", "src/lib.rs"),
+            ),
+            (
+                "/home/u/work/zen/zenjpeg/zenjpeg/src/decode.rs",
+                ("zenjpeg", "src/decode.rs"),
+            ),
+            ("src/main.rs", ("", "src/main.rs")),
+            ("build.rs", ("", "build.rs")),
+            (
+                r"C:\work\zenwebp\src\lossy.rs",
+                ("zenwebp", r"src\lossy.rs"),
+            ),
+        ] {
+            assert_eq!(package_of(file), expected, "{file}");
+        }
+    }
 }

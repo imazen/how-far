@@ -92,9 +92,9 @@ pub fn all() -> Vec<Case> {
             },
         });
         v.push(Case {
-            name: "zenpng-decode-maniac-out",
+            name: "zenpng-decode-balanced",
             codec: "zenpng",
-            blurb: "decode the maniac-compressed PNG back (decode poll pattern)",
+            blurb: "decode a Balanced-compressed 2048x2048 PNG (decode poll pattern)",
             run: |m, begin, end| {
                 use rgb::FromSlice;
                 // Encode unmetered first — this case isolates DECODE polling.
