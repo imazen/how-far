@@ -45,9 +45,9 @@ The default features are `std,json`. With defaults disabled, tracking uses
 provider must exclude every participating core. Native-width counters saturate
 and expose overflow on targets without 64-bit atomics. The `callback` feature
 adds `FnPulse` and lazy `Checkpoint`; it does not require std or 64-bit atomics.
-`adapters` forwards the core cancellation-adapter feature. To smooth a
-display's fraction between reports, see the accessory crate
-[`how-far-interpolate`](../how-far-interpolate/README.md).
+`adapters` forwards the core cancellation-adapter feature. `smooth` adds
+`ProgressSmoother`, which smooths a display's fraction between reports at each
+running stage's own pace; it needs neither std nor a clock of its own.
 
 Callbacks run at checkpoints, never from counting, completion or Drop. Use
 `poll::LocalPoller` for UI-thread or borrowed callbacks. Shared workers retain

@@ -7,6 +7,6 @@
 fn public_api_surface_docs_are_current() {
     zenutils_apidoc::ApiDoc::new()
         .workspace_dir("..")
-        .crates(["how-far", "how-far-along", "how-far-really", "how-far-interpolate"])
+        .crates(["how-far", "how-far-along", "how-far-really"])
         .run();
 }

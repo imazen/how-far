@@ -1,7 +1,9 @@
-//! Observer-side interpolation between reports.
+//! Display-side smoothing between reports (the `smooth` feature).
+#![cfg(feature = "smooth")]
 
-use how_far_along::{Complete, Execution, Observer, Outcome, Phase, PhaseSpec, Report, Total};
-use how_far_interpolate::ProgressSmoother;
+use how_far_along::{
+    Complete, Execution, Observer, Outcome, Phase, PhaseSpec, ProgressSmoother, Report, Total,
+};
 use std::time::Duration;
 
 fn ms(n: u64) -> Duration {

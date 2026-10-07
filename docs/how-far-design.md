@@ -14,7 +14,6 @@ The crates follow one dependency direction:
 library → how-far → enough
 application → how-far-along → how-far
 application/tests → how-far-really → how-far-along + how-far
-display → how-far-interpolate → how-far-along
 ```
 
 `how-far` owns the portable protocol: `Pulse`, `Stop`, `Report`, planning
@@ -132,9 +131,9 @@ callbacks from the host. `Paced::finish` flushes the final batch and checks;
 its Drop only counts.
 
 Smoothness is the display's concern, not the library's. A library reports at
-the granularity its own loop has. The accessory crate `how-far-interpolate`
+the granularity its own loop has. how-far-along's optional `smooth` feature
 adds `ProgressSmoother`, which a display holds per observed tree of one
-operation; neither `how-far` nor `how-far-along` depends on it. It watches each
+operation; libraries never see it. It watches each
 running leaf's counts at poll time, using the caller's clock (the tracker reads
 none), and between reports moves the leaf on at that leaf's own average pace:
 at most the latest change past its recorded count and at most half the work it

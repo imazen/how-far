@@ -15,6 +15,8 @@ mod json;
 #[cfg(feature = "callback")]
 pub use callback::{Checkpoint, FnPulse};
 pub mod poll;
+#[cfg(feature = "smooth")]
+mod smooth;
 mod sync;
 mod tree;
 
@@ -29,4 +31,6 @@ pub use how_far::{
 };
 
 pub use pulse::PulseTree;
+#[cfg(feature = "smooth")]
+pub use smooth::ProgressSmoother;
 pub use tree::{NodeId, Observer, Phase, Reporter, Snapshot, Status, Summary};
