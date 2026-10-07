@@ -9,3 +9,6 @@ description = "Smooths how-far-along progress between reports, for displays"
 
 [dependencies]
 how-far-along.workspace = true
+
+[dev-dependencies]
+critical-section = { version = "1.2", features = ["std"] }

@@ -50,6 +50,7 @@ jobs:
         run: |
           cargo test -p how-far --no-default-features
           cargo test -p how-far-along --no-default-features
+          cargo test -p how-far-interpolate
 
   cross-platform:
     name: Cross (${{ matrix.target }})

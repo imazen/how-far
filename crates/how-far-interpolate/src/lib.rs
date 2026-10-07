@@ -144,7 +144,8 @@ impl Interpolator {
     }
 
     fn leaf(&mut self, node: NodeId, count: u64, total: u64, now: Duration) -> f64 {
-        // Sorted by node, so a frame costs O(leaves × log leaves).
+        // Sorted by node: a lookup costs O(log leaves); a leaf seen for the
+        // first time is inserted, shifting the leaves after it.
         let index = match self.leaves.binary_search_by_key(&node, |pace| pace.node) {
             Ok(index) => index,
             Err(index) => {
