@@ -3,8 +3,8 @@
 //! usage: how-far-checkpoint-cost stop IMPLEMENTATION PATTERN CHUNK ITERATIONS
 use crate::{WORKERS, sub_defilter};
 use almost_enough::{
-    BoxedStop, ChildStopper, DebouncedTimeout, FnStop, OrStop, PollMeter, StopRef, StopSource,
-    StopToken, Stopper, SyncStopper, WithTimeout,
+    ChildStopper, DebouncedTimeout, FnStop, OrStop, PollMeter, StopRef, StopSource, StopToken,
+    Stopper, SyncStopper, WithTimeout,
 };
 use enough::{Stop, StopReason, Unstoppable};
 use enough_tokio::TokioStop;
@@ -128,7 +128,6 @@ pub fn main(implementation: &str, pattern: &str, buf: &mut [u8], chunk: usize, i
             iterations,
         ),
         "token" => run(&StopToken::new(Stopper::new()), pattern, buf, chunk, iterations),
-        "boxed" => run(&BoxedStop::new(Stopper::new()), pattern, buf, chunk, iterations),
         "poll-meter" => run(&PollMeter::new(Stopper::new()), pattern, buf, chunk, iterations),
         "tokio" => run(
             &TokioStop::new(tokio_util::sync::CancellationToken::new()),

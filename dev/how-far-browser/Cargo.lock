@@ -4,8 +4,9 @@ version = 4
 
 [[package]]
 name = "almost-enough"
-version = "0.4.4"
-source = "git+https://github.com/imazen/enough?rev=7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e#7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a21c2c51df646d0b968287162262608d29a13571cda4e314976c9ff49e99080"
 dependencies = [
  "enough",
 ]
@@ -70,8 +71,9 @@ checksum = "252afb9ae5eaa683babdc6a068b3f5726eb19e05070c731f9b2a23a7c3e8ed34"
 
 [[package]]
 name = "enough"
-version = "0.4.4"
-source = "git+https://github.com/imazen/enough?rev=7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e#7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "877362cb7b70d1c617f0cd3c67708bd58d894a86af5104018e2c10ebaee3c02f"
 
 [[package]]
 name = "futures-core"

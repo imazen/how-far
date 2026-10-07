@@ -6,18 +6,12 @@ publish = false
 description = "What how-far costs for each observer and each library scenario, counted with perf"
 
 [dependencies]
-almost-enough = { version = "0.4.4", features = ["poll-meter"] }
-enough = "0.4.4"
-enough-tokio = "0.5.0"
+almost-enough = { version = "0.4.5", features = ["poll-meter"] }
+enough = "0.4.5"
+enough-tokio = "0.5.1"
 tokio-util = { version = "0.7.19", default-features = false }
 how-far = { path = "../../crates/how-far", features = ["adapters"] }
 how-far-along = { path = "../../crates/how-far-along", features = ["callback"] }
 how-far-really = { path = "../../crates/how-far-really" }
 
 [workspace]
-
-# enough::AsStopReason (imazen/enough#40) is unreleased; see the workspace Cargo.toml.
-[patch.crates-io]
-enough = { git = "https://github.com/imazen/enough", rev = "7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e" }
-almost-enough = { git = "https://github.com/imazen/enough", rev = "7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e" }
-enough-tokio = { git = "https://github.com/imazen/enough", rev = "7e3fd289fbe6ef74a01a06caf0544d545cfe6d2e" }
