@@ -202,9 +202,11 @@ pub struct ReportGap {
 
 /// How long each quarter of one span's reported units took, recorded only
 /// when [`Profiler::set_report_timing`] is on and the span reported at least
-/// four times. Each quarter ends at the moment its last unit was reported,
-/// interpolated between up to 32 sampled reports, and the first starts at the
-/// span's entry, so setup before the first report counts toward it.
+/// four times. An estimate: each quarter ends where its last unit was
+/// reported, interpolated between up to 32 sampled reports. The first starts
+/// at the span's start, so work before the first report counts toward it,
+/// and a report that read the clock before reports already recorded counts
+/// from its own reading on.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct UnitPace {
@@ -583,6 +585,22 @@ impl SpanState {
         }
     }
 
+    /// A timed report that read the clock at `at`, before reports already
+    /// recorded (a worker preempted between reading the clock and locking):
+    /// its `units` count in every sample taken after it.
+    fn late(&mut self, at: u64, units: u64) {
+        let mut i = 0;
+        while i < self.samples.len() {
+            if self.samples[i].0 > at {
+                self.samples[i].1 = self.samples[i].1.saturating_add(units);
+            }
+            i += 1;
+        }
+        if let Some(latest) = &mut self.latest {
+            latest.1 = latest.1.saturating_add(units);
+        }
+    }
+
     /// Keep a timed report reaching `units` at `now` for `stats.unit_pace`.
     fn sample(&mut self, now: u64, units: u64) {
         self.latest = Some((now, units));
@@ -818,11 +836,15 @@ impl SpanInner {
         state.stats.overflowed |= add(&mut state.stats.reports, 1);
         state.stats.overflowed |= add(&mut state.stats.units, completed);
         let mut interval = 0;
-        if let Some(now) = timed {
-            let units = state.stats.units;
-            state.sample(now, units);
-            interval = now.saturating_sub(state.last_point);
-            state.last_point = state.last_point.max(now);
+        match (timed, now) {
+            (Some(now), _) => {
+                let units = state.stats.units;
+                state.sample(now, units);
+                interval = now.saturating_sub(state.last_point);
+                state.last_point = state.last_point.max(now);
+            }
+            (None, Some(now)) => state.late(now, completed),
+            (None, None) => {}
         }
         // Borrow the guard's fields apart.
         let state = &mut *state;

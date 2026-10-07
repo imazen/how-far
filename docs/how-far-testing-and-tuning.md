@@ -167,7 +167,11 @@ units cost about the same, so such a phase's bar runs fast and then stalls, or
 the reverse. If the change comes from the work itself, split the phase into
 stages where it changes and weight them by the measured times; if it comes
 from the input, report a unit that tracks cost, such as bytes or pixels.
-Setup before the first report counts toward the first quarter.
+The first quarter runs from the span's start, which for a phase measured by
+`DiagnosticPulse` is its first activity, so setup before that is not counted.
+A quarter whose reports all landed in one clock reading counts as the fastest
+possible, not as missing evidence. A report that read the clock before reports
+already recorded (a worker preempted on the way) still counts in its quarter.
 
 ### Stages a phase could declare
 
@@ -186,7 +190,12 @@ its own, named after that check, since nothing in it can be stopped or
 reported. A stretch under `Options::negligible_stage_share` of the time joins
 its neighbor. The sample code lists one `PhaseSpec` per stretch, named by the file
 and line of its busiest location, weighted by its share of the time, with
-the units it reported (or its checks) as an estimated total. Locations that
+the units it reported (or its checks) as an estimated total. Time ending at
+an outer loop's location is spread over the stretches in proportion, and the
+evidence says how much. Each comment's range is when the stretch's locations
+were called: the intervals its weight counts end at those calls, so a stage's
+work starts before its range, as setup before a first check does. The final
+stage starts at the last timed check or report. Locations that
 alternate inside one loop form a single stretch, so they never suggest a
 split. One run gives candidates; check the weights across inputs.
 
