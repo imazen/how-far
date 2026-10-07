@@ -41,7 +41,7 @@ with no check at all, so nothing in it can be cancelled or reported.
 | zengif encode, 64 × 512² frames | 4.78 s | 22,431 | zenquant 99%, zengif 1% | 3 | global histogram 31% (zenquant `histogram.rs:184`), median cut 3%, palette and remap 66% (zenquant `lib.rs:1415`); units = frames (zengif `encoder.rs:543` checks once per frame) |
 | zenbitmaps PAM, 8K | 62.4 ms | 272 | zenbitmaps | none | one stage of rows (`pnm/encode.rs:63`) |
 | zenzop squeeze, 4 MB | 14.1 s | 601,552 | zenzop | none: the first pass is 1% | one stage; units = squeeze iterations (15, `squeeze.rs:681`), after a 142 ms greedy LZ77 pass (`lz77.rs:217`) |
-| butteraugli, 2048² | 736 ms | 2,079 | butteraugli | 2 | reference precompute 45%, **unchecked for its first 333 ms** (`precompute.rs:1084` is the first check), then blur and comparison 55% (`blur.rs:453`, `malta.rs:1487`) |
+| butteraugli, 2048² | 736 ms | 2,079 | butteraugli | 2 | reference precompute 45%: `ButteraugliReference::new` takes no `Stop`, so its **333 ms run unchecked**; then `compare_with_stop`'s blur and comparison 55% (`blur.rs:453`, `malta.rs:1487`) |
 | fast-ssim2, 2048² | 660 ms | 793 | fast-ssim2 | 2 | conversion 8% (`pipeline/mod.rs:270`), then 6 scales 92%: weight scales by pixel count (1, 1/4, 1/16, …), since the same lines run at every scale |
 
 ## Repeatability
@@ -68,7 +68,9 @@ against registered parameters would fit.
 
 The stage after the last check found three stretches with no check at all:
 zenjpeg's progressive encode (79 ms of 122) and decode (36 ms of 86.5) at 4K,
-and butteraugli's first 333 ms. Each is also a cancellation gap.
+inside calls that take a `Stop`, and butteraugli's 333 ms in
+`ButteraugliReference::new`, which takes none (only its `compare_*_with_stop`
+methods do). Each is also a cancellation gap.
 
 zenwebp's lossy method 6 spends 82% of its time encoding the alpha plane
 losslessly. The input's alpha is a smooth wave (192 ± 60), so this is the
