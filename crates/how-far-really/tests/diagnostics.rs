@@ -969,7 +969,9 @@ fn checkpoints_in_separate_stretches_suggest_stages_weighted_by_time() {
     let trace = profiler.snapshot();
     let found = find(&trace, Kind::SuggestedStages).unwrap();
     assert!(found.evidence.contains("2 stretches"), "{}", found.evidence);
-    let file = file!();
+    // The sample code quotes names as Rust strings, escaping Windows
+    // backslashes.
+    let file = file!().replace('\\', "\\\\");
     let code = found.sample_code.unwrap();
     assert!(code.contains(&format!(
         "PhaseSpec::new(\"{file}:{prepass}\", 25, Total::Estimated(10)), // calls 1.0 to 10.0 ms; 10.0 ms of intervals end at them; 10 checks"
@@ -1048,7 +1050,9 @@ fn an_outer_loop_around_stages_is_left_out_of_them() {
         .unwrap()
         .sample_code
         .unwrap();
-    let file = file!();
+    // The sample code quotes names as Rust strings, escaping Windows
+    // backslashes.
+    let file = file!().replace('\\', "\\\\");
     // A ended 19 ms of intervals and B 40; the outer loop's 3 are left out.
     assert!(
         code.contains(&format!("PhaseSpec::new(\"{file}:{}\", 32,", lines[1])),
@@ -1080,7 +1084,9 @@ fn time_after_the_last_check_is_a_stage_of_its_own() {
         .unwrap()
         .sample_code
         .unwrap();
-    let file = file!();
+    // The sample code quotes names as Rust strings, escaping Windows
+    // backslashes.
+    let file = file!().replace('\\', "\\\\");
     assert!(code.contains(&format!(
         "PhaseSpec::new(\"{file}:{line}\", 33, Total::Estimated(20)), // calls 1.0 to 20.0 ms; 20.0 ms of intervals end at them; 20 checks"
     )), "{code}");
@@ -1143,7 +1149,9 @@ fn a_spanning_location_lighter_than_its_stretches_is_left_out_whatever_its_size(
         found.evidence
     );
     let code = found.sample_code.unwrap();
-    let file = file!();
+    // The sample code quotes names as Rust strings, escaping Windows
+    // backslashes.
+    let file = file!().replace('\\', "\\\\");
     assert!(
         code.contains(&format!("PhaseSpec::new(\"{file}:{a}\", 47,")),
         "{code}"
