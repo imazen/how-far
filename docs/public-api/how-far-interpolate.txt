@@ -1,0 +1,35 @@
+# how-far-interpolate public API — supported surface (default features)
+# (regenerated on every `cargo test` by zenutils-apidoc; ZEN_API_DOC=check verifies, =off skips).
+# Encodings: crate-name prefix stripped; auto traits collapse to a
+# count + exceptions; trait impls collapse to one roster line per
+# type (method signatures live at the trait definition); blanket
+# impls omitted; re-export duplicates annotated `[also: path]`.
+# DO NOT EDIT BY HAND — commit regenerated changes with the code.
+#
+# files: how-far-interpolate.txt 6 lines (supported surface) | how-far-interpolate.features.txt 0 added (features: none) | how-far-interpolate.internal.txt 0 lines (0 hidden + 0 excluded-feature)
+
+## summary
+#
+#   pub modules                                 1
+#   pub types (struct/enum/trait/alias)         1
+#   inherent methods                            2
+#   trait roster entries (type × trait)         2
+#   auto-trait-complete types                   1
+#
+# per-module pub lines:
+#   (root)                            4
+
+## items (4 lines)
+
+pub mod how_far_interpolate
+pub struct Interpolator
+pub fn Interpolator::fraction(&mut self, &how_far_along::tree::Snapshot, core::time::Duration) -> core::option::Option<f64>
+pub fn Interpolator::new() -> Self
+
+## trait impls (1 types)
+
+Interpolator: Debug, Default
+
+## auto traits
+
+1 types implement all of: Freeze, RefUnwindSafe, Send, Sync, Unpin, UnwindSafe

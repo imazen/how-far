@@ -122,8 +122,10 @@ jobs:
           cargo build -p how-far --target wasm32-unknown-unknown
           cargo build -p how-far-along --target thumbv7em-none-eabihf --no-default-features
           cargo build -p how-far-along --target wasm32-unknown-unknown --no-default-features
-          cargo build -p how-far-along --target thumbv7em-none-eabihf --no-default-features --features callback,adapters,json,interpolate
-          cargo build -p how-far-along --target wasm32-unknown-unknown --no-default-features --features callback,adapters,json,interpolate
+          cargo build -p how-far-along --target thumbv7em-none-eabihf --no-default-features --features callback,adapters,json
+          cargo build -p how-far-along --target wasm32-unknown-unknown --no-default-features --features callback,adapters,json
+          cargo build -p how-far-interpolate --target thumbv7em-none-eabihf
+          cargo build -p how-far-interpolate --target wasm32-unknown-unknown
           # The example libraries adopt how-far as no_std + alloc codecs do.
           cargo build -p how-far-example-codec -p how-far-example-pipeline --target thumbv7em-none-eabihf --no-default-features --features how-far-example-pipeline/adapters
 
@@ -145,10 +147,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Check feature powerset
-        run: cargo hack check --feature-powerset --no-dev-deps -p how-far -p how-far-along -p how-far-really
+        run: cargo hack check --feature-powerset --no-dev-deps -p how-far -p how-far-along -p how-far-really -p how-far-interpolate
 
   # No semver job yet: the crates have no published baseline. Add
-  # `cargo semver-checks -p how-far -p how-far-along -p how-far-really`
+  # `cargo semver-checks -p how-far -p how-far-along -p how-far-really -p how-far-interpolate`
   # after their first release.
 
   # ==========================================================================

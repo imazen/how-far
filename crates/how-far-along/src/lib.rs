@@ -10,8 +10,6 @@ mod pulse;
 #[cfg(feature = "callback")]
 mod callback;
 pub mod ext;
-#[cfg(feature = "interpolate")]
-pub mod interpolate;
 #[cfg(feature = "json")]
 mod json;
 #[cfg(feature = "callback")]

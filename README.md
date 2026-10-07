@@ -35,8 +35,9 @@ fn encode(rows: &[u8], pulse: &dyn Pulse) -> Result<(), StopReason> {
 | [`how-far`](crates/how-far/README.md) | libraries | The `&dyn Pulse` interface: cancellation, completed units, weighted phases. `no_std + alloc`, depends only on `enough`. |
 | [`how-far-along`](crates/how-far-along/README.md) | applications | Progress trees, snapshots, pollers, JSON, optional checkpoint callbacks. `no_std + alloc`. |
 | [`how-far-really`](crates/how-far-really/README.md) | tests and tuning | Opt-in profiling of checkpoint cadence and diagnostics of protocol misuse and stage weights. `std`. |
+| [`how-far-interpolate`](crates/how-far-interpolate/README.md) | displays | Accessory: smooths a polled tree's fraction between reports, at each running stage's own pace. `no_std + alloc`. |
 
-All three need Rust 1.88.
+All four need Rust 1.88.
 
 - [Design](docs/how-far-design.md)
 - [Testing and tuning](docs/how-far-testing-and-tuning.md)

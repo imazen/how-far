@@ -1,8 +1,7 @@
 //! Observer-side interpolation between reports.
-#![cfg(feature = "interpolate")]
 
-use how_far_along::interpolate::Interpolator;
 use how_far_along::{Complete, Execution, Observer, Outcome, Phase, PhaseSpec, Report, Total};
+use how_far_interpolate::Interpolator;
 use std::time::Duration;
 
 fn ms(n: u64) -> Duration {

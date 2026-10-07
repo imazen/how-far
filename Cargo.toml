@@ -4,6 +4,7 @@ members = [
     "crates/how-far",
     "crates/how-far-along",
     "crates/how-far-really",
+    "crates/how-far-interpolate",
     "examples/how-far-codec",
     "examples/how-far-pipeline",
     "examples/how-far-app",
