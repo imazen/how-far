@@ -133,14 +133,17 @@ its Drop only counts.
 
 Smoothness is the display's concern, not the library's. A library reports at
 the granularity its own loop has. The accessory crate `how-far-interpolate`
-adds `Interpolator`, which a display holds per operation; neither `how-far` nor
-`how-far-along` depends on it. It watches each running
-leaf's counts at poll time, using the caller's clock (the tracker reads none),
-and between reports advances the leaf at that leaf's own average pace. The
-estimate is capped at one observed change ahead, at the total and at a
-fraction of 1, and never goes backwards. A change is timed when a poll first
-sees it, so the resolution is the poll interval. Pacing stays per stage and
-costs the library nothing: the library's own reporting is unchanged.
+adds `ProgressSmoother`, which a display holds per observed tree of one
+operation; neither `how-far` nor `how-far-along` depends on it. It watches each
+running leaf's counts at poll time, using the caller's clock (the tracker reads
+none), and between reports moves the leaf on at that leaf's own average pace:
+at most the latest change past its recorded count and at most half the work it
+has left, so extrapolation alone never completes a stage. Recorded outcomes
+win: a finished leaf shows the snapshot's record and a revised total starts the
+leaf over, so the display steps back when a stage fails or its total rises.
+A change is timed when a poll first sees it, so the resolution is the poll
+interval. Accuracy depends on the library declaring stages whose units cost
+about the same; the smoother cannot find boundaries a library left out.
 
 ## Synchronization and portability
 

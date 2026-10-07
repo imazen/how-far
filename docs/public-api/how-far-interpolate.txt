@@ -22,13 +22,13 @@
 ## items (4 lines)
 
 pub mod how_far_interpolate
-pub struct Interpolator
-pub fn Interpolator::fraction(&mut self, &how_far_along::tree::Snapshot, core::time::Duration) -> core::option::Option<f64>
-pub fn Interpolator::new() -> Self
+pub struct ProgressSmoother
+pub fn ProgressSmoother::display_fraction(&mut self, &how_far_along::tree::Snapshot, core::time::Duration) -> core::option::Option<f64>
+pub fn ProgressSmoother::new() -> Self
 
 ## trait impls (1 types)
 
-Interpolator: Debug, Default
+ProgressSmoother: Debug, Default
 
 ## auto traits
 
