@@ -6,7 +6,7 @@
 # impls omitted; re-export duplicates annotated `[also: path]`.
 # DO NOT EDIT BY HAND — commit regenerated changes with the code.
 #
-# files: how-far-really.txt 181 lines (supported surface) | how-far-really.features.txt 0 added (features: none) | how-far-really.internal.txt 11 lines (11 hidden + 0 excluded-feature)
+# files: how-far-really.txt 181 lines (supported surface) | how-far-really.features.txt 0 added (features: stage-suggestions) | how-far-really.internal.txt 11 lines (11 hidden + 0 excluded-feature)
 
 ## summary
 #

@@ -944,6 +944,7 @@ fn an_evenly_paced_phase_gets_no_uneven_pace_advice() {
     assert!(trace.spans[0].stats.unit_pace.is_none());
 }
 
+#[cfg(feature = "stage-suggestions")]
 #[test]
 fn checkpoints_in_separate_stretches_suggest_stages_weighted_by_time() {
     let clock = ManualClock::default();
@@ -980,6 +981,7 @@ fn checkpoints_in_separate_stretches_suggest_stages_weighted_by_time() {
     assert_eq!((site.time, site.active), (ms(10), Some((ms(1), ms(10)))));
 }
 
+#[cfg(feature = "stage-suggestions")]
 #[test]
 fn checkpoints_that_alternate_in_one_loop_suggest_no_stages() {
     let clock = ManualClock::default();
@@ -997,4 +999,92 @@ fn checkpoints_that_alternate_in_one_loop_suggest_no_stages() {
     }
     span.finish(Outcome::Succeeded);
     assert!(find(&profiler.snapshot(), Kind::SuggestedStages).is_none());
+}
+
+/// Check once, returning the line of that check.
+#[cfg(feature = "stage-suggestions")]
+fn check_outer(stop: &dyn Stop) -> u32 {
+    stop.check().unwrap();
+    line!() - 1
+}
+#[cfg(feature = "stage-suggestions")]
+fn check_a(stop: &dyn Stop) -> u32 {
+    stop.check().unwrap();
+    line!() - 1
+}
+#[cfg(feature = "stage-suggestions")]
+fn check_b(stop: &dyn Stop) -> u32 {
+    stop.check().unwrap();
+    line!() - 1
+}
+
+#[cfg(feature = "stage-suggestions")]
+#[test]
+fn an_outer_loop_around_stages_is_left_out_of_them() {
+    let clock = ManualClock::default();
+    let profiler = Profiler::new(clock.clone(), 2);
+    let span = profiler.span(None, "decode", SpanKind::Work);
+    let stop = span.instrument(Unstoppable);
+    let (mut t, mut lines) = (0, [0; 3]);
+    // Three rounds of an outer loop: stage A in the first, stage B in the
+    // second, nothing in the third.
+    for round in 0..3 {
+        t += 1;
+        clock.set(t);
+        lines[0] = check_outer(&stop);
+        let (step, count) = [(1, 19), (2, 20), (0, 0)][round];
+        for _ in 0..count {
+            t += step;
+            clock.set(t);
+            lines[round + 1] = if round == 0 {
+                check_a(&stop)
+            } else {
+                check_b(&stop)
+            };
+        }
+    }
+    span.finish(Outcome::Succeeded);
+    let code = find(&profiler.snapshot(), Kind::SuggestedStages)
+        .unwrap()
+        .sample_code
+        .unwrap();
+    let file = file!();
+    // A ended 19 ms of intervals and B 40; the outer loop's 3 are left out.
+    assert!(
+        code.contains(&format!("PhaseSpec::new(\"{file}:{}\", 32,", lines[1])),
+        "{code}"
+    );
+    assert!(
+        code.contains(&format!("PhaseSpec::new(\"{file}:{}\", 68,", lines[2])),
+        "{code}"
+    );
+    assert!(!code.contains(&format!("{file}:{}\"", lines[0])), "{code}");
+}
+
+#[cfg(feature = "stage-suggestions")]
+#[test]
+fn time_after_the_last_check_is_a_stage_of_its_own() {
+    let clock = ManualClock::default();
+    let profiler = Profiler::new(clock.clone(), 2);
+    let span = profiler.span(None, "encode", SpanKind::Work);
+    let stop = span.instrument(Unstoppable);
+    let mut line = 0;
+    for t in 1..=20 {
+        clock.set(t);
+        line = check_a(&stop);
+    }
+    // 40 ms of work after the last check.
+    clock.set(60);
+    span.finish(Outcome::Succeeded);
+    let code = find(&profiler.snapshot(), Kind::SuggestedStages)
+        .unwrap()
+        .sample_code
+        .unwrap();
+    let file = file!();
+    assert!(code.contains(&format!(
+        "PhaseSpec::new(\"{file}:{line}\", 33, Total::Estimated(20)), // 1.0 to 20.0 ms, 20 checks"
+    )), "{code}");
+    assert!(code.contains(&format!(
+        "PhaseSpec::new(\"after {file}:{line}\", 67, Total::Exact(1)), // 20.0 to 60.0 ms, 0 checks: add checks and units here"
+    )), "{code}");
 }

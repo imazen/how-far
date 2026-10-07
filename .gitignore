@@ -1,6 +1,7 @@
 /target
 apidoc/target/
 dev/how-far-checkpoint-cost/target/
+dev/stage-suggestions/target/
 dev/how-far-wasm/target/
 dev/how-far-browser/target/
 dev/how-far-browser/pkg/
