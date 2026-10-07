@@ -169,6 +169,21 @@ stages where it changes and weight them by the measured times; if it comes
 from the input, report a unit that tracks cost, such as bytes or pixels.
 Setup before the first report counts toward the first quarter.
 
+### Stages a phase could declare
+
+Each span records, per source location, the time of the intervals that ended
+there and when it was first and last called (`SiteStats::time` and
+`SiteStats::active`; reports count only with report timing on). A
+`SuggestedStages` finding appears when a leaf phase, or code measured without
+a progress tree such as a codec's `Stop` checks, ran its checkpoints in
+separate stretches: locations whose calls overlap in time form one stretch,
+and a stretch under `Options::negligible_stage_share` of the time joins its
+neighbor. The sample code lists one `PhaseSpec` per stretch, named by the file
+and line of its busiest location, weighted by its share of the time, with
+the units it reported (or its checks) as an estimated total. Locations that
+alternate inside one loop form a single stretch, so they never suggest a
+split. One run gives candidates; check the weights across inputs.
+
 ### Defaults and cost
 
 The default targets are 10 ms between cancellation checks, 50 ms between

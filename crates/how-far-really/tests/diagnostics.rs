@@ -943,3 +943,58 @@ fn an_evenly_paced_phase_gets_no_uneven_pace_advice() {
     assert!(find(&trace, Kind::UnevenPace).is_none());
     assert!(trace.spans[0].stats.unit_pace.is_none());
 }
+
+#[test]
+fn checkpoints_in_separate_stretches_suggest_stages_weighted_by_time() {
+    let clock = ManualClock::default();
+    let profiler = Profiler::new(clock.clone(), 2);
+    let span = profiler.span(None, "encode", SpanKind::Work);
+    let stop = span.instrument(Unstoppable);
+    // A prepass checking every 1 ms, then the main loop every 3 ms.
+    let mut t = 0;
+    let prepass = line!() + 4;
+    for _ in 0..10 {
+        t += 1;
+        clock.set(t);
+        stop.check().unwrap();
+    }
+    let main = line!() + 4;
+    for _ in 0..10 {
+        t += 3;
+        clock.set(t);
+        stop.check().unwrap();
+    }
+    span.finish(Outcome::Succeeded);
+    let trace = profiler.snapshot();
+    let found = find(&trace, Kind::SuggestedStages).unwrap();
+    assert!(found.evidence.contains("2 stretches"), "{}", found.evidence);
+    let file = file!();
+    let code = found.sample_code.unwrap();
+    assert!(code.contains(&format!(
+        "PhaseSpec::new(\"{file}:{prepass}\", 25, Total::Estimated(10)), // 1.0 to 10.0 ms, 10 checks"
+    )), "{code}");
+    assert!(code.contains(&format!(
+        "PhaseSpec::new(\"{file}:{main}\", 75, Total::Estimated(10)), // 13.0 to 40.0 ms, 10 checks"
+    )), "{code}");
+    let site = &trace.spans[0].stats.sites[0];
+    assert_eq!((site.time, site.active), (ms(10), Some((ms(1), ms(10)))));
+}
+
+#[test]
+fn checkpoints_that_alternate_in_one_loop_suggest_no_stages() {
+    let clock = ManualClock::default();
+    let profiler = Profiler::new(clock.clone(), 2);
+    let span = profiler.span(None, "rows", SpanKind::Work);
+    let stop = span.instrument(Unstoppable);
+    for t in 1..=40 {
+        clock.set(t);
+        // Two source locations, alternating.
+        if t % 2 == 0 {
+            stop.check().unwrap();
+            continue;
+        }
+        stop.check().unwrap();
+    }
+    span.finish(Outcome::Succeeded);
+    assert!(find(&profiler.snapshot(), Kind::SuggestedStages).is_none());
+}
