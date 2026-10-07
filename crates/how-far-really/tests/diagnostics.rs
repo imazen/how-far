@@ -1088,3 +1088,64 @@ fn time_after_the_last_check_is_a_stage_of_its_own() {
         "PhaseSpec::new(\"after {file}:{line}\", 67, Total::Exact(1)), // 20.0 to 60.0 ms, 0 checks: add checks and units here"
     )), "{code}");
 }
+
+#[cfg(feature = "stage-suggestions")]
+#[test]
+fn a_main_loop_around_short_steps_is_one_stage() {
+    let clock = ManualClock::default();
+    let profiler = Profiler::new(clock.clone(), 2);
+    let span = profiler.span(None, "squeeze", SpanKind::Work);
+    let stop = span.instrument(Unstoppable);
+    // The main loop checks every millisecond throughout; two short steps
+    // inside it check once each.
+    for t in 1..=100 {
+        clock.set(t);
+        check_a(&stop);
+        if t == 30 || t == 60 {
+            if t == 30 {
+                check_b(&stop);
+            } else {
+                check_outer(&stop);
+            }
+        }
+    }
+    span.finish(Outcome::Succeeded);
+    assert!(find(&profiler.snapshot(), Kind::SuggestedStages).is_none());
+}
+
+#[cfg(feature = "stage-suggestions")]
+#[test]
+fn a_spanning_location_lighter_than_its_stretches_is_left_out_whatever_its_size() {
+    let clock = ManualClock::default();
+    let profiler = Profiler::new(clock.clone(), 2);
+    let span = profiler.span(None, "encode", SpanKind::Work);
+    let stop = span.instrument(Unstoppable);
+    // A at 1-10 ms, B at 11-20 ms, and a location H at 5 and 30 ms that
+    // ends 11 ms of intervals: more than A (9) or B (10), less than both.
+    let (mut a, mut b) = (0, 0);
+    for t in 1..=30 {
+        clock.set(t);
+        match t {
+            5 | 30 => {
+                check_outer(&stop);
+            }
+            1..=10 => a = check_a(&stop),
+            11..=20 => b = check_b(&stop),
+            _ => {}
+        }
+    }
+    span.finish(Outcome::Succeeded);
+    let code = find(&profiler.snapshot(), Kind::SuggestedStages)
+        .unwrap()
+        .sample_code
+        .unwrap();
+    let file = file!();
+    assert!(
+        code.contains(&format!("PhaseSpec::new(\"{file}:{a}\", 47,")),
+        "{code}"
+    );
+    assert!(
+        code.contains(&format!("PhaseSpec::new(\"{file}:{b}\", 53,")),
+        "{code}"
+    );
+}

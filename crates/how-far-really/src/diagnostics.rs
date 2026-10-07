@@ -1122,13 +1122,17 @@ struct Stretch {
 fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
     use core::fmt::Write as _;
     let sites = &span.stats.sites;
-    let time = |i: usize| match sites[i].active {
-        Some(_) => sites[i].time,
-        None => Duration::ZERO,
+    // Shortest window first, so the order depends on when each location ran,
+    // which is stable from run to run, rather than on near-equal times. A
+    // location whose calls overlap one stretch joins it. One overlapping
+    // several either carries more time than they do, and is the main work
+    // around short steps (they merge into it), or less, and is an outer loop
+    // around them (left out).
+    let window = |i: usize| match sites[i].active {
+        Some((first, last)) => last.saturating_sub(first),
+        None => Duration::MAX,
     };
-    // Largest first: a location whose calls overlap one stretch joins it, and
-    // one overlapping several is an outer loop around them, left out.
-    let order = sorted_indices(sites.len(), &|a, b| time(b).cmp(&time(a)));
+    let order = sorted_indices(sites.len(), &|a, b| window(a).cmp(&window(b)));
     let mut found: Vec<Stretch> = Vec::new();
     let (mut last_site, mut last_call) = (usize::MAX, span.start);
     for &i in &order {
@@ -1139,16 +1143,15 @@ fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
         if last_site == usize::MAX || last > last_call {
             (last_site, last_call) = (i, last);
         }
-        let (mut overlaps, mut into) = (0, 0);
-        let mut k = 0;
-        while k < found.len() {
-            if first < found[k].end && found[k].start < last {
-                overlaps += 1;
-                into = k;
+        let overlaps = |s: &Stretch| first < s.end && s.start < last;
+        let (mut count, mut covered) = (0, Duration::ZERO);
+        for stretch in &found {
+            if overlaps(stretch) {
+                count += 1;
+                covered += stretch.time;
             }
-            k += 1;
         }
-        let next = Stretch {
+        let mut next = Stretch {
             start: first,
             end: last,
             time: site.time,
@@ -1156,11 +1159,19 @@ fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
             checks: site.checks,
             units: site.units,
         };
-        match overlaps {
-            0 => found.push(next),
-            1 => absorb(&mut found[into], next, sites),
-            _ => {}
+        if count > 1 && site.time < covered {
+            continue;
         }
+        let mut k = 0;
+        while k < found.len() {
+            if overlaps(&found[k]) {
+                let stretch = found.swap_remove(k);
+                absorb(&mut next, stretch, sites);
+            } else {
+                k += 1;
+            }
+        }
+        found.push(next);
     }
     if last_site == usize::MAX {
         return None;

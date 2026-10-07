@@ -175,11 +175,13 @@ Each span records, per source location, the time of the intervals that ended
 there and when it was first and last called (`SiteStats::time` and
 `SiteStats::active`; reports count only with report timing on). With the
 `stage-suggestions` feature, a `SuggestedStages` finding appears when a leaf
-phase, or code measured without
-a progress tree such as a codec's `Stop` checks, ran its checkpoints in
-separate stretches. Locations are taken largest first: one whose calls
-overlap a single stretch joins it, and one overlapping several is an outer loop
-around them and is left out. The time after the last check becomes a stage of
+phase, or code measured without a progress tree such as a codec's `Stop`
+checks, ran its checkpoints in separate stretches. Locations are taken in order
+of how long they were active, shortest first, which is stable from run to run.
+One whose calls overlap a single stretch joins it. One overlapping several
+merges them if it carries more time than they do (the main work around short
+steps), and otherwise is an outer loop around them and is left out. The time
+after the last check becomes a stage of
 its own, named after that check, since nothing in it can be stopped or
 reported. A stretch under `Options::negligible_stage_share` of the time joins
 its neighbor. The sample code lists one `PhaseSpec` per stretch, named by the file
