@@ -565,12 +565,10 @@ impl SpanState {
     /// recorded (a worker preempted between reading the clock and locking):
     /// its `units` count in every sample taken after it.
     fn late(&mut self, at: u64, units: u64) {
-        let mut i = 0;
-        while i < self.samples.len() {
-            if self.samples[i].0 > at {
-                self.samples[i].1 = self.samples[i].1.saturating_add(units);
+        for sample in &mut self.samples {
+            if sample.0 > at {
+                sample.1 = sample.1.saturating_add(units);
             }
-            i += 1;
         }
         if let Some(latest) = &mut self.latest {
             latest.1 = latest.1.saturating_add(units);
@@ -586,10 +584,9 @@ impl SpanState {
         }
         if self.samples.len() == PACE_SAMPLES {
             // Keep every other sample, and sample half as often from now on.
-            let mut kept = 0;
-            while 2 * kept + 1 < PACE_SAMPLES {
-                self.samples[kept] = self.samples[2 * kept + 1];
-                kept += 1;
+            let kept = PACE_SAMPLES / 2;
+            for index in 0..kept {
+                self.samples[index] = self.samples[2 * index + 1];
             }
             self.samples.truncate(kept);
             self.stride = self.stride.saturating_mul(2);

@@ -8,6 +8,7 @@
 
 ### Changed
 
+- Simplified unit-pace sample traversal without changing report sampling or late-report accounting.
 - Requires `enough` and `almost-enough` 0.4.5 from crates.io, the first releases with `enough::AsStopReason`, instead of a git commit of enough's main
 
 ### Added
