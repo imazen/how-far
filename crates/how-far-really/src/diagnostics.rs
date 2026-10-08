@@ -1113,7 +1113,7 @@ struct Stretch {
     start: Duration,
     end: Duration,
     time: Duration,
-    busiest: usize,
+    busiest: Option<usize>,
     checks: u64,
     units: u64,
 }
@@ -1122,7 +1122,21 @@ struct Stretch {
 /// was active and how much time each one ended.
 #[cfg(feature = "stage-suggestions")]
 fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
-    use core::fmt::Write as _;
+    let stages = group_stages(span, options)?;
+    Some(render_stages(span, &stages))
+}
+
+#[cfg(feature = "stage-suggestions")]
+struct GroupedStages {
+    stretches: Vec<Stretch>,
+    total: Duration,
+    omitted: Duration,
+    last_site: usize,
+}
+
+/// Group overlapping source locations and fold stretches too small to calibrate.
+#[cfg(feature = "stage-suggestions")]
+fn group_stages(span: &SpanRecord, options: &Options) -> Option<GroupedStages> {
     let sites = &span.stats.sites;
     // Shortest window first, so the order depends on when each location ran,
     // which is stable from run to run, rather than on near-equal times. A
@@ -1138,14 +1152,14 @@ fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
     let mut found: Vec<Stretch> = Vec::new();
     // Time ending at outer-loop locations, left out of the stretches.
     let mut omitted = Duration::ZERO;
-    let (mut last_site, mut last_call) = (usize::MAX, span.start);
+    let (mut last_site, mut last_call) = (None, span.start);
     for &i in &order {
         let site = &sites[i];
         let Some((first, last)) = site.active else {
             break;
         };
-        if last_site == usize::MAX || last > last_call {
-            (last_site, last_call) = (i, last);
+        if last_site.is_none() || last > last_call {
+            (last_site, last_call) = (Some(i), last);
         }
         let overlaps = |s: &Stretch| first < s.end && s.start < last;
         let (mut count, mut covered) = (0, Duration::ZERO);
@@ -1159,7 +1173,7 @@ fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
             start: first,
             end: last,
             time: site.time,
-            busiest: i,
+            busiest: Some(i),
             checks: site.checks,
             units: site.units,
         };
@@ -1178,9 +1192,7 @@ fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
         }
         found.push(next);
     }
-    if last_site == usize::MAX {
-        return None;
-    }
+    let last_site = last_site?;
     // In the order they ran, then the time after the last check, which no
     // location ended.
     let by_start = sorted_indices(found.len(), &|a, b| found[a].start.cmp(&found[b].start));
@@ -1196,7 +1208,7 @@ fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
         start: last_call,
         end: span.end,
         time: tail,
-        busiest: usize::MAX,
+        busiest: None,
         checks: 0,
         units: 0,
     });
@@ -1219,8 +1231,29 @@ fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
     if !matches!(kept, 2..=16) {
         return None;
     }
+    stretches.truncate(kept);
+    Some(GroupedStages {
+        stretches,
+        total,
+        omitted,
+        last_site,
+    })
+}
+
+/// Render a grouping as evidence and a candidate Stages declaration.
+#[cfg(feature = "stage-suggestions")]
+fn render_stages(span: &SpanRecord, stages: &GroupedStages) -> Finding {
+    use core::fmt::Write as _;
+    let GroupedStages {
+        stretches,
+        total,
+        omitted,
+        last_site,
+    } = stages;
+    let sites = &span.stats.sites;
+    let kept = stretches.len();
     let mut shares = Vec::with_capacity(kept);
-    for stretch in &stretches[..kept] {
+    for stretch in stretches {
         shares.push(stretch.time.as_secs_f64() / total.as_secs_f64());
     }
     let weights = percent_weights(&shares);
@@ -1233,8 +1266,8 @@ fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
         format!(
             "task {:?}: its checkpoints ran in {kept} stretches, one after another; {:.1} ms ({:.0}%) of the timed intervals ended at locations spanning several stretches (outer loops), and the weights spread that time over the stretches in proportion",
             span.task,
-            ms(omitted),
-            100.0 * omitted.as_secs_f64() / (total + omitted).as_secs_f64()
+            ms(*omitted),
+            100.0 * omitted.as_secs_f64() / (*total + *omitted).as_secs_f64()
         )
     };
     let mut code = String::from("Stages::new(pulse, &[\n");
@@ -1244,8 +1277,8 @@ fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
             ms(stretch.start.saturating_sub(span.start)),
             ms(stretch.end.saturating_sub(span.start)),
         );
-        let tail = stretch.busiest == usize::MAX;
-        let site = &sites[if tail { last_site } else { stretch.busiest }];
+        let tail = stretch.busiest.is_none();
+        let site = &sites[stretch.busiest.unwrap_or(*last_site)];
         let name = format!(
             "{}{}:{}",
             if tail { "after " } else { "" },
@@ -1273,12 +1306,12 @@ fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
         };
     }
     code.push_str("])");
-    Some(Finding {
+    Finding {
         kind: Kind::SuggestedStages,
         evidence,
         advice: "Declaring these as stages (Stages or Phases) lets the bar, and any smoothing of it, follow each part's own pace, and names each part in diagnostics. Give each stage a unit it can report, such as the loop iterations behind its checks. Each range is when a stretch's locations were called; the intervals its weight counts end at those calls, so its work starts before its range (setup before a first check counts toward the first stretch). Locations whose calls span several stretches (outer loops) are left out of the stretches and their time is spread over them. The weights are one run's shares of time: check them across inputs before relying on them.".into(),
         sample_code: Some(code),
-    })
+    }
 }
 
 /// Add `next` to `stretch`, which ran before, around or alongside it.
@@ -1289,11 +1322,12 @@ fn absorb(stretch: &mut Stretch, next: Stretch, sites: &[crate::profile::SiteSta
     stretch.time += next.time;
     stretch.checks = stretch.checks.saturating_add(next.checks);
     stretch.units = stretch.units.saturating_add(next.units);
-    if next.busiest < sites.len()
-        && (stretch.busiest >= sites.len()
-            || sites[next.busiest].time > sites[stretch.busiest].time)
+    if let Some(next_site) = next.busiest
+        && stretch
+            .busiest
+            .is_none_or(|current| sites[next_site].time > sites[current].time)
     {
-        stretch.busiest = next.busiest;
+        stretch.busiest = Some(next_site);
     }
 }
 

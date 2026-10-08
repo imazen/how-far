@@ -531,9 +531,6 @@ struct SpanState {
     /// Checks since the last report, to tell a coarse reporting unit from
     /// missing cancellation checks.
     window: Window,
-    /// The latest check or timed report, which starts the next interval a
-    /// site's `time` counts.
-    last_point: u64,
     /// `stats.sites[i].max_gap_before_check`.
     site_gaps: Vec<u64>,
     /// Indices in `stats.sites` of the last check's and the last report's
@@ -561,7 +558,6 @@ impl SpanState {
             until_sample: 1,
             latest: None,
             window: Window::new(start),
-            last_point: start,
             site_gaps: Vec::new(),
             check_site: 0,
             report_site: 0,
@@ -589,12 +585,10 @@ impl SpanState {
     /// recorded (a worker preempted between reading the clock and locking):
     /// its `units` count in every sample taken after it.
     fn late(&mut self, at: u64, units: u64) {
-        let mut i = 0;
-        while i < self.samples.len() {
-            if self.samples[i].0 > at {
-                self.samples[i].1 = self.samples[i].1.saturating_add(units);
+        for sample in &mut self.samples {
+            if sample.0 > at {
+                sample.1 = sample.1.saturating_add(units);
             }
-            i += 1;
         }
         if let Some(latest) = &mut self.latest {
             latest.1 = latest.1.saturating_add(units);
@@ -610,10 +604,9 @@ impl SpanState {
         }
         if self.samples.len() == PACE_SAMPLES {
             // Keep every other sample, and sample half as often from now on.
-            let mut kept = 0;
-            while 2 * kept + 1 < PACE_SAMPLES {
-                self.samples[kept] = self.samples[2 * kept + 1];
-                kept += 1;
+            let kept = PACE_SAMPLES / 2;
+            for index in 0..kept {
+                self.samples[index] = self.samples[2 * index + 1];
             }
             self.samples.truncate(kept);
             self.stride = self.stride.saturating_mul(2);
@@ -762,9 +755,8 @@ impl SpanInner {
             state.max_check_gap_start = state.last_check;
         }
         state.window.check(start);
+        let interval = start.saturating_sub(state.last_check.max(state.last_report));
         state.last_check = state.last_check.max(start);
-        let interval = start.saturating_sub(state.last_point);
-        state.last_point = state.last_point.max(start);
         if let Some(end) = end {
             let elapsed = match nanos(end).checked_sub(start) {
                 Some(elapsed) => elapsed,
@@ -826,7 +818,9 @@ impl SpanInner {
             Some(now) if now >= state.last_report => Some(now),
             _ => None,
         };
+        let mut interval = 0;
         if let Some(now) = timed {
+            interval = now.saturating_sub(state.last_check.max(state.last_report));
             let at = Some(SourceSite::from_location(at));
             let duration = now - state.last_report;
             state.close_report_gap(now, duration, at);
@@ -835,13 +829,10 @@ impl SpanInner {
         }
         state.stats.overflowed |= add(&mut state.stats.reports, 1);
         state.stats.overflowed |= add(&mut state.stats.units, completed);
-        let mut interval = 0;
         match (timed, now) {
             (Some(now), _) => {
                 let units = state.stats.units;
                 state.sample(now, units);
-                interval = now.saturating_sub(state.last_point);
-                state.last_point = state.last_point.max(now);
             }
             (None, Some(now)) => state.late(now, completed),
             (None, None) => {}
