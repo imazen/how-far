@@ -8,6 +8,7 @@
 
 ### Changed
 
+- Smoothing keeps the learned pace for count updates with no new time interval, without retaining an undo buffer.
 - Requires `enough` and `almost-enough` 0.4.5 from crates.io, the first releases with `enough::AsStopReason`, instead of a git commit of enough's main
 
 ### Added

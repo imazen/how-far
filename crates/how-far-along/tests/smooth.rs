@@ -271,29 +271,42 @@ fn extrapolation_moves_at_most_the_latest_change_and_never_completes_a_stage() {
 }
 
 #[test]
-fn changes_seen_at_one_time_are_one_change() {
+fn changes_without_a_new_interval_preserve_the_learned_pace() {
     let mut job = Phase::new("rows", Total::Exact(100));
     job.start().unwrap();
     let (reporter, observer) = (job.reporter(), job.observer());
-    let (mut split, mut whole) = (ProgressSmoother::new(), ProgressSmoother::new());
-    at(&mut split, &observer, 0);
-    at(&mut whole, &observer, 0);
+    let mut smooth = ProgressSmoother::new();
+    at(&mut smooth, &observer, 0);
     reporter.advance(1);
-    at(&mut split, &observer, 100);
+    near(at(&mut smooth, &observer, 100), 0.01);
     reporter.advance(1);
-    at(&mut split, &observer, 100);
-    // An earlier time counts as the same time.
+    near(at(&mut smooth, &observer, 100), 0.02);
     reporter.advance(1);
-    at(&mut split, &observer, 50);
-    at(&mut whole, &observer, 100);
-    // Three units in 100 ms: half-way to the next change, 1.5 units ahead.
-    near(at(&mut split, &observer, 150), 0.045);
-    for now in [150, 175, 199, 400] {
-        near(
-            at(&mut split, &observer, now),
-            at(&mut whole, &observer, now),
-        );
-    }
+    near(at(&mut smooth, &observer, 50), 0.03);
+    // Keep the one-unit/100-ms pace; count every report without retiming it.
+    near(at(&mut smooth, &observer, 150), 0.035);
+    near(at(&mut smooth, &observer, 200), 0.04);
+    reporter.advance(1);
+    near(at(&mut smooth, &observer, 200), 0.04);
+    near(at(&mut smooth, &observer, 250), 0.045);
+}
+
+#[test]
+fn same_time_changes_update_the_bound_without_inventing_a_pace() {
+    let mut job = Phase::new("rows", Total::Exact(1000));
+    job.start().unwrap();
+    let (reporter, observer) = (job.reporter(), job.observer());
+    let mut smooth = ProgressSmoother::new();
+    at(&mut smooth, &observer, 0);
+    reporter.advance(10);
+    near(at(&mut smooth, &observer, 0), 0.01);
+    near(at(&mut smooth, &observer, 50), 0.01);
+    reporter.advance(100);
+    near(at(&mut smooth, &observer, 100), 0.11);
+    reporter.advance(1);
+    near(at(&mut smooth, &observer, 100), 0.111);
+    // The latest change is one unit even though the learned step is 100.
+    near(at(&mut smooth, &observer, 200), 0.112);
 }
 
 #[test]

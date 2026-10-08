@@ -22,3 +22,16 @@ msrv:
 # Interface boundary and cold-build cost guard, as CI runs it
 build-cost:
     python3 dev/bench-how-far-build.py --runs 3
+
+# Local library gates; also exercise individual no-default-feature packages.
+check:
+    cargo fmt -p how-far -p how-far-along -p how-far-really -p how-far-example-codec -p how-far-example-pipeline -p how-far-example-app -- --check
+    cargo test --workspace --all-features --color never
+    cargo test -p how-far --no-default-features --color never
+    cargo test -p how-far-along --no-default-features --color never
+    cargo clippy --workspace --all-targets --all-features --color never -- -D warnings
+    cargo hack check --feature-powerset --no-dev-deps -p how-far -p how-far-along -p how-far-really --color never
+
+# Exercise the display smoother without std or other default features.
+check-smooth: check
+    cargo test -p how-far-along --no-default-features --features smooth --color never

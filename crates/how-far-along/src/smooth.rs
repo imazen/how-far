@@ -35,8 +35,9 @@ const BELOW_ONE: f64 = 1.0 - f64::EPSILON / 2.0;
 /// - Recorded outcomes win. A finished stage shows what the snapshot records,
 ///   so a stage that fails or is cancelled steps the display back to the work
 ///   it did, and a revised total starts the stage over from its count.
-/// - Count changes seen at the same time are one change; an earlier time
-///   counts as the same time.
+///
+/// Count changes seen at the same or an earlier time update the count and
+/// latest-change bound without changing the learned pace.
 ///
 /// The estimate is only as good as the reporting. It assumes a stage's reports
 /// are roughly evenly spaced, and it cannot find stage boundaries a library did
@@ -91,8 +92,9 @@ struct Pace {
     node: NodeId,
     /// The total the pace was learned against; a revision starts over.
     total: u64,
-    /// The latest count, and when the change to it was first seen.
+    /// The latest recorded count.
     count: u64,
+    /// The latest time used to learn pace, initially the first poll.
     since: Duration,
     /// Units per change and seconds per change, averaged over the changes seen.
     step: f64,
@@ -100,11 +102,6 @@ struct Pace {
     changes: u32,
     /// The latest change, which bounds how far the display runs ahead.
     last_step: f64,
-    /// The latest change's starting count and gap, and the averages before
-    /// it, so that a change seen at the same time can join it.
-    last_base: u64,
-    last_interval: f64,
-    before: (f64, f64, u32),
     /// The largest fraction shown, so a running leaf's display never goes back.
     shown: f64,
     /// Seen in the current call; leaves no longer running are dropped.
@@ -122,9 +119,6 @@ impl Pace {
             interval: 0.0,
             changes: 0,
             last_step: 0.0,
-            last_base: count,
-            last_interval: 0.0,
-            before: (0.0, 0.0, 0),
             shown: 0.0,
             seen: true,
         }
@@ -143,27 +137,20 @@ impl Pace {
         self.step += (step - self.step) * weight;
         self.interval += (interval - self.interval) * weight;
         self.changes = self.changes.saturating_add(1);
-        self.last_step = step;
     }
 
     /// Take a new count, then estimate the fraction of `total` done at `now`.
     fn estimate(&mut self, count: u64, now: Duration) -> f64 {
         if count > self.count {
+            let step = (count - self.count) as f64;
             let elapsed = now.saturating_sub(self.since).as_secs_f64();
             if elapsed > 0.0 {
-                self.before = (self.step, self.interval, self.changes);
-                self.last_base = self.count;
-                self.last_interval = elapsed;
-                self.learn((count - self.count) as f64, elapsed);
+                self.learn(step, elapsed);
                 self.since = now;
-            } else if self.changes != 0 {
-                // Seen at the same time as the latest change (or, with a
-                // clock that went back, earlier): it is part of that change.
-                (self.step, self.interval, self.changes) = self.before;
-                self.learn((count - self.last_base) as f64, self.last_interval);
             }
-            // Without a change seen yet, a count seen at the first poll's
-            // time is the starting count.
+            // Counts and the latest-change bound advance even when the clock
+            // gives no new interval from which to learn a pace.
+            self.last_step = step;
             self.count = count;
         }
         let total = self.total as f64;
@@ -200,9 +187,9 @@ impl ProgressSmoother {
     ///
     /// `now` comes from any monotonic clock of the caller's, as a time since
     /// an epoch of its choosing; pass the same clock on every call. A count
-    /// change seen at the same time as the previous one is part of that
-    /// change, and an earlier time counts as the same time. Calling again
-    /// with the same snapshot and a later time moves the display on.
+    /// change seen at the same or an earlier time updates the count and bound
+    /// while preserving the learned pace. Calling again with the same snapshot
+    /// and a later time moves the display on.
     ///
     /// While a leaf runs under the same total its display never goes back.
     /// A finished leaf shows what the snapshot records, and a revised total
