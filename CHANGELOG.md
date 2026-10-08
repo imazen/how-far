@@ -6,8 +6,15 @@
 
 <!-- Breaks that will ship together in one leading-digit bump. None queued. -->
 
+### Fixed
+
+- Synchronize the host cancellation fixture so dropped polling attempts and worker completion cannot hide its requested stop.
+
 ### Changed
 
+- Resolve the stage-suggestion harness from sibling checkouts through relative paths.
+- Simplified stage grouping and rendering, and derive site intervals from existing check/report timestamps.
+- Simplified unit-pace sample traversal without changing report sampling or late-report accounting.
 - Requires `enough` and `almost-enough` 0.4.5 from crates.io, the first releases with `enough::AsStopReason`, instead of a git commit of enough's main
 
 ### Added

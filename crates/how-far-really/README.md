@@ -4,6 +4,12 @@ Opt-in diagnostics and checkpoint tuning for applications and library tests.
 This crate depends on `how-far` and `how-far-along`; neither depends on it.
 Rust 1.88 and `std` are required. No executor or background thread is started.
 
+For library tests and benchmarks, put this crate in `[dev-dependencies]`.
+A diagnostics executable uses it in `[dependencies]`; an application can also
+opt into runtime profiling. The `stage-suggestions` feature keeps candidate
+stage grouping here as reusable tooling. Its weights describe one measured run
+and need comparison across representative inputs before adoption.
+
 ```rust
 use how_far::{prelude::*, StopReason, Total, Unstoppable};
 use how_far_along::{Phase, PulseTree};
