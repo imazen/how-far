@@ -6,6 +6,10 @@
 
 <!-- Breaks that will ship together in one leading-digit bump. None queued. -->
 
+### Fixed
+
+- Synchronize the host cancellation fixture so dropped polling attempts and worker completion cannot hide its requested stop.
+
 ### Changed
 
 - Simplified stage grouping and rendering, and derive site intervals from existing check/report timestamps.

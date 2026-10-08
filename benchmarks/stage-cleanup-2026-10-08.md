@@ -51,3 +51,28 @@ Stages::run, per call site                       6.1    13.3    65.5
 run-heavy: done rc=0 51s | peak-RSS 0.17GiB | min-avail 34665MiB | peak-load 25.91
 ```
 
+## Cancellation-fixture follow-up
+
+[ARM CI](https://github.com/imazen/how-far/actions/runs/37716610631)
+exposed a pre-existing host-test race: a polling callback could request a stop
+after every worker's last check, while contended poll attempts could also be
+dropped. The fixture now serializes dispatch and checks after it. All existing
+assertions remain. `just check-hosts 100 check` passed (100 repetitions plus the
+full local gates). The pre-fix local 100-repeat run did not reproduce the ARM
+failure. Library source is unchanged from `8dc920c9031b53a114e39682de9c86a709f4bbec`;
+the repeat guard confirms the same IR counts.
+
+```text
+rustc 1.88.0 (6b00bc388 2025-06-23)
+how-far IR per Stages::run call site: 88 lines (budget 120)
+how-far-along IR, std: 20484 lines (budget 22000)
+how-far-really IR, diagnostics: 34690 lines (budget 35000)
+rustc instructions (millions)                  check   debug release
+empty no_std crate                              20.8    22.9    25.4
+how-far                                        257.7   605.0  1168.8
+how-far-along (std)                            397.2  1073.6  2726.9
+how-far-really                                 682.2  1860.4  5764.3
+plain function call, per call site               4.6     8.3    46.3
+Stages::run, per call site                       6.1    13.3    65.6
+run-heavy: done rc=0 60s | peak-RSS 0.17GiB | min-avail 36626MiB | peak-load 29.03
+```

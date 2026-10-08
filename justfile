@@ -31,3 +31,11 @@ check:
     cargo test -p how-far-along --no-default-features --color never
     cargo clippy --workspace --all-targets --all-features --color never -- -D warnings
     cargo hack check --feature-powerset --no-dev-deps -p how-far -p how-far-along -p how-far-really --color never
+
+# Repeat the host concurrency contracts to exercise cancellation scheduling.
+check-hosts runs="100":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for ((run = 1; run <= {{runs}}; run++)); do
+        cargo test -p how-far-really --all-features --test hosts --color never
+    done
