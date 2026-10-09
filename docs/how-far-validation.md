@@ -31,7 +31,7 @@ What is tested, where, and what the tests do not cover. See
 | Metadata replacement concurrent with snapshots, under Miri with strict provenance | `crates/how-far-along/src/sync.rs`, `crates/how-far-along/tests/phases.rs` |
 | A real Wasm timer boundary, JSPI suspension and cancellation, progress posted from a worker | `dev/how-far-wasm/check.mjs` |
 | A UI thread observing and cancelling a `wasm-bindgen-rayon` pool in Chromium and WebKit | `dev/how-far-browser/browser.spec.mjs` |
-| `enough` on Rust 1.85 and the how-far crates on 1.88; `no_std` builds for Cortex-M (including optional callbacks with native-width counters) and wasm32; every feature combination; i686, aarch64 Linux and Windows, Intel macOS | CI |
+| The how-far crates on Rust 1.88; `no_std` builds for Cortex-M (including optional callbacks with native-width counters) and wasm32; every feature combination; i686, aarch64 Linux and Windows, Intel macOS | CI |
 
 No test suite proves every consumer's behavior. There is no built-in ETA
 model or executor; exported observations support them without claiming that
@@ -39,21 +39,27 @@ durations are CPU time or that fractions are elapsed time.
 
 Browser and Wasm guidance is in [the design notes](how-far-design.md#wasm).
 
+The [integration guide](how-far-integration.md) is compiled as application-crate
+doctests. `just check-integration` runs it and the caller example. Display
+smoothing contracts live in `crates/how-far-along/tests/smooth.rs`; uneven pace
+and feature-gated grouping are covered by `crates/how-far-really/tests/diagnostics.rs`.
+
 ## Build and runtime cost
 
 `dev/bench-how-far-build.py`, run in CI on Rust 1.88, permits only the additive
 core `adapters` and `checked` features, only the `enough` production dependency,
 and no build script. It caps `Stages::run` at 120 unoptimized LLVM IR lines per
 call site, tracker code at 22,000 and the `how-far-really` diagnostics crate at
-35,000. It also counts rustc's instructions, which unlike wall time do not
+35,000 with default features. Optional smoothing and stage suggestions are
+outside those default-feature caps. It also counts rustc's instructions, which unlike wall time do not
 depend on machine load. `dev/how-far-checkpoint-cost` counts, with perf, what
 each observer costs in each library scenario around the same
 `#[inline(never)]` defilter.
 
 [The 2026-10-06 record](../benchmarks/how-far-2026-10-06.md) has the build cost
 at commit `2bcc73a`: 79 / 18,382 / 29,703 IR lines on Rust 1.99, and 88 / 19,986
-/ 31,228 on 1.88. After the allocation, counter and diagnostics changes the
-guard reads 79 / 19,309 / 31,088 on 1.99 and 88 / 20,484 / 32,808 on 1.88. The
+/ 31,228 on 1.88. After the allocation, counter and diagnostics changes that
+record reports 79 / 19,309 / 31,088 on 1.99 and 88 / 20,484 / 32,808 on 1.88. The
 record's overhead matrix, measured at `cb49a7f5`, crosses nine observers with
 eight library scenarios: `step` into a
 `PulseTree` costs 65 to 77 instructions per checkpoint, `StopOnly` 28 and an
@@ -61,3 +67,8 @@ eight library scenarios: `step` into a
 `DiagnosticPulse` under 0.3% of a 256 KiB defilter. A second table, on x86-64
 and aarch64, does the same for every `enough` stop policy and check pattern. It also records the zenpng
 adoption tests.
+
+Later cleanup measurements are recorded separately: [pace](../benchmarks/pace-cleanup-2026-10-08.md),
+[stage grouping](../benchmarks/stage-cleanup-2026-10-08.md), and
+[smoothing](../benchmarks/smoother-cleanup-2026-10-08.md). Treat each result as
+belonging to its recorded revision and command, rather than as a live counter.

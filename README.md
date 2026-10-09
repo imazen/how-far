@@ -53,3 +53,7 @@ with `enough::AsStopReason`.
 
 Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE),
 at your option.
+
+See the [tested integration guide](docs/how-far-integration.md) for dependency setup, result
+handoffs, callbacks, diagnostics, and caller-side display smoothing. Run it
+with `just check-integration` from the workspace root.

@@ -137,7 +137,9 @@ operation; libraries never see it. It watches each
 running leaf's counts at poll time, using the caller's clock (the tracker reads
 none), and between reports moves the leaf on at that leaf's own average pace:
 at most the latest change past its recorded count and at most half the work it
-has left, so extrapolation alone never completes a stage. Recorded outcomes
+has left, so extrapolation alone never completes a stage. A running leaf does
+not move backward under an unchanged total: a previously displayed estimate
+can remain above a smaller new bound until the work catches up. Recorded outcomes
 win: a finished leaf shows the snapshot's record and a revised total starts the
 leaf over, so the display steps back when a stage fails or its total rises.
 A change is timed when a poll first sees it, so the resolution is the poll

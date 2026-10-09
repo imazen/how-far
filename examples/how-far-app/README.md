@@ -64,3 +64,7 @@ Diagnostics cannot recover intent or fix a library that swallows its own errors.
 Tests assert both the original result and the observation, including the limits
 of what can be inferred. A sink that rejects every plan confirms that rejected
 tracking cannot replace even a bare `Result<(), StopReason>`.
+
+See the [tested integration guide](../../docs/how-far-integration.md) for dependency setup, result
+handoffs, callbacks, diagnostics, and caller-side display smoothing. Run it
+with `just check-integration` from the workspace root.

@@ -76,3 +76,7 @@ work with scoped workers; owned `new`/`replacing` policies can use `share()`. Tr
 
 Runnable, cross-crate usage and intentional mistakes are in
 [the example crates](../../examples/how-far-app/README.md).
+
+See the [tested integration guide](../../docs/how-far-integration.md) for dependency setup, result
+handoffs, callbacks, diagnostics, and caller-side display smoothing. Run it
+with `just check-integration` from the workspace root.

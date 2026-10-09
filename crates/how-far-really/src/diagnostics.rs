@@ -725,7 +725,7 @@ impl Trace {
                     findings.push(finding(Kind::UnevenPace, format!(
                             "task {:?}: the quarters of its {} units took {:.2}, {:.2}, {:.2} and {:.2} ms",
                             span.task, span.stats.units, ms(q[0]), ms(q[1]), ms(q[2]), ms(q[3])
-                        ), "Progress, and display smoothing between reports, assume a phase's units cost about the same. If the change comes from the work itself (a different step), split the phase into stages where it changes, weighted by these times. If it comes from the input, report a unit that tracks the cost, such as bytes or pixels rather than items. The first quarter runs from the span's start, which for a phase measured by DiagnosticPulse is its first activity."));
+                        ), "Progress, and display smoothing between reports, assume a phase's units cost about the same. If the change comes from the work itself (a different step), split the phase into stages where it changes, weighted by these times. If it comes from the input, report a unit that tracks the cost, such as bytes or pixels rather than items. The first quarter runs from the span's start: sequence entry for a sequential stage, otherwise its first check or report."));
                 }
             }
             #[cfg(feature = "stage-suggestions")]
@@ -1139,7 +1139,7 @@ struct GroupedStages {
 fn group_stages(span: &SpanRecord, options: &Options) -> Option<GroupedStages> {
     let sites = &span.stats.sites;
     // Shortest window first, so the order depends on when each location ran,
-    // which is stable from run to run, rather than on near-equal times. A
+    // though timing changes can change this order across runs. A
     // location whose calls overlap one stretch joins it. One overlapping
     // several either carries more time than they do, and is the main work
     // around short steps (they merge into it), or less, and is an outer loop

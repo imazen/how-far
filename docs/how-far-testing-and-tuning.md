@@ -1,15 +1,8 @@
 # Test and tune a library that accepts `&dyn Pulse`
 
-Keep the production dependency small and put the tracker in dev-dependencies:
-
-```toml
-[dependencies]
-how-far = "0.1"
-
-[dev-dependencies]
-how-far-along = "0.1"
-how-far-really = "0.1"
-```
+Keep `how-far` in the library's production dependencies and the tracker and
+diagnostics in dev-dependencies. The crates are not published yet; use the
+[pinned dependency setup and tested integration guide](how-far-integration.md).
 
 ## Test what the library reports
 
@@ -18,19 +11,20 @@ Run each operation twice: once with `how_far::NoPulse` and once with a
 the library left behind. Finish the root yourself; the library never does.
 
 ```rust
-use how_far_along::{Outcome, Phase, PulseTree, Status, Total, Unstoppable};
+use how_far::{prelude::*, Outcome, Total, Unstoppable};
+use how_far_along::{Phase, PulseTree, Status};
+use how_far_example_codec::Mode;
+use how_far_example_pipeline::convert;
 
 let tree = PulseTree::new(Phase::new("encode", Total::Unknown), Unstoppable);
 let observer = tree.observer();
-// let result = my_library::encode(&input, &tree);
-// assert_eq!(result, my_library::encode(&input, &how_far::NoPulse));
-tree.finish(Outcome::Succeeded)?;
+let result = convert(&[1, 2], &tree, Mode::Fast, false).finish_phase(tree);
+assert_eq!(result, convert(&[1, 2], &how_far::NoPulse, Mode::Fast, false));
 let root = observer.snapshot();
 assert_eq!(root.status, Status::Finished(Outcome::Succeeded));
 // Check stage names, units, totals, completed counts and outcomes:
 // assert_eq!(root.children[0].name, "decode");
 // assert_eq!(root.children[0].completed, rows);
-# Ok::<(), how_far_along::PlanError>(())
 ```
 
 Worth a test each:
@@ -58,7 +52,10 @@ crates, scoped and spawned threads, Rayon, and Tokio.
 tree, pass the wrapper, and finish the wrapper:
 
 ```rust
-use how_far_along::{Outcome, Phase, PulseTree, Total, Unstoppable};
+use how_far::{prelude::*, Total, Unstoppable};
+use how_far_along::{Phase, PulseTree};
+use how_far_example_codec::Mode;
+use how_far_example_pipeline::convert;
 use how_far_really::diagnostics::{DiagnosticPulse, Options};
 use how_far_really::profile::{Profiler, StdClock};
 
@@ -66,13 +63,13 @@ let profiler = Profiler::new(StdClock::new(), 512);
 let tree = PulseTree::new(Phase::new("encode", Total::Unknown), Unstoppable);
 let measured = DiagnosticPulse::new(tree, &profiler);
 let observer = measured.observer();
-// let result = my_library::encode(&input, &measured);
-measured.finish(Outcome::Succeeded)?;
+let result = convert(&[1, 2], &measured, Mode::Fast, false).finish_phase(measured);
+profiler.operation_returned();
+assert!(result.is_ok());
 let trace = profiler.snapshot().with_progress(observer.snapshot());
 for finding in trace.diagnose(&Options::default()) {
     eprintln!("{finding}");
 }
-# Ok::<(), how_far_along::PlanError>(())
 ```
 
 Every phase the library plans gets its own span, tied to its node in the
@@ -167,8 +164,9 @@ units cost about the same, so such a phase's bar runs fast and then stalls, or
 the reverse. If the change comes from the work itself, split the phase into
 stages where it changes and weight them by the measured times; if it comes
 from the input, report a unit that tracks cost, such as bytes or pixels.
-The first quarter runs from the span's start, which for a phase measured by
-`DiagnosticPulse` is its first activity, so setup before that is not counted.
+The first quarter runs from the span's start: sequence entry for a sequential
+stage, otherwise its first check or report. Setup after sequence entry counts;
+work before a non-sequential phase's first activity is not observed.
 A quarter whose reports all landed in one clock reading counts as the fastest
 possible, not as missing evidence. A report that read the clock before reports
 already recorded (a worker preempted on the way) still counts in its quarter.
@@ -181,13 +179,14 @@ there and when it was first and last called (`SiteStats::time` and
 `stage-suggestions` feature, a `SuggestedStages` finding appears when a leaf
 phase, or code measured without a progress tree such as a codec's `Stop`
 checks, ran its checkpoints in separate stretches. Locations are taken in order
-of how long they were active, shortest first, which is stable from run to run.
+of how long they were active, shortest first. Timing changes can change their
+order and the resulting groups across runs.
 One whose calls overlap a single stretch joins it. One overlapping several
 merges them if it carries more time than they do (the main work around short
 steps), and otherwise is an outer loop around them and is left out. The time
-after the last check becomes a stage of
-its own, named after that check, since nothing in it can be stopped or
-reported. A stretch under `Options::negligible_stage_share` of the time joins
+after the last retained timed check or report becomes a stage of
+its own, named after that location. This is an interval without recorded
+checkpoint activity, not proof that the library cannot check there. A stretch under `Options::negligible_stage_share` of the time joins
 its neighbor. The sample code lists one `PhaseSpec` per stretch, named by the file
 and line of its busiest location, weighted by its share of the time, with
 the units it reported (or its checks) as an estimated total. Time ending at
