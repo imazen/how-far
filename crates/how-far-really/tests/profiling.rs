@@ -424,3 +424,43 @@ fn workers_sharing_a_span_never_look_like_a_backwards_clock() {
     assert_eq!(trace.spans[0].stats.checks, 16_000);
     assert_eq!(trace.spans[0].stats.units, 16_000);
 }
+
+#[test]
+fn site_intervals_follow_the_latest_check_or_timed_report() {
+    let clock = ManualClock::default();
+    let profiler = Profiler::new(clock.clone(), 1);
+    profiler.set_report_timing(true);
+    let span = profiler.span(None, "interleaved", SpanKind::Work);
+    let work = span.instrument(ProgressWithStop::new(Unstoppable, NoReport));
+    // Arrival order can differ from clock order for workers sharing a span.
+    // A late report or check must not rewind the start of the next interval.
+    for (at, report) in [
+        (10, false),
+        (15, true),
+        (12, true),
+        (20, false),
+        (18, true),
+        (17, false),
+        (25, true),
+        (30, false),
+    ] {
+        clock.set(at);
+        if report {
+            work.advance(1);
+        } else {
+            work.check().unwrap();
+        }
+    }
+    span.finish(Outcome::Succeeded);
+    let trace = profiler.snapshot();
+    let sites = &trace.spans[0].stats.sites;
+    let checks = sites.iter().find(|site| site.checks > 0).unwrap();
+    let reports = sites.iter().find(|site| site.reports > 0).unwrap();
+    assert_eq!(checks.time, Duration::from_millis(20));
+    assert_eq!(reports.time, Duration::from_millis(10));
+    assert_eq!(reports.units, 4);
+    assert_eq!(
+        reports.active,
+        Some((Duration::from_millis(15), Duration::from_millis(25)))
+    );
+}

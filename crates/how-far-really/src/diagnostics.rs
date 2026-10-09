@@ -4,7 +4,9 @@
 //! the library, then call [`Trace::diagnose`] on the profiler's trace. The
 //! findings point at source lines: long stretches without a cancellation
 //! check, long stretches without a report, very hot call sites, slow or
-//! irregular callbacks, and stage weights that differ from measured time.
+//! irregular callbacks, stage weights that differ from measured time,
+//! phases whose units slow down or speed up partway, and stages to declare
+//! in a phase whose checkpoints run in separate stretches.
 //! Code that uses only a stop policy can be measured with
 //! [`Span::instrument`](crate::profile::Span::instrument) and diagnosed the
 //! same way.
@@ -68,6 +70,12 @@ pub struct Options {
     /// may not be for the next). It keeps its declared weight, as long as the
     /// stages held this way together own at most half the bar.
     pub negligible_stage_share: f64,
+    /// A task whose slowest quarter of reported units took at least this many
+    /// times as long as its fastest gets [`Kind::UnevenPace`] advice. It needs
+    /// report timing, at least 8 reports, and `minimum_stage_wall` of wall
+    /// time. A fastest quarter under the clock's resolution counts as zero, so
+    /// any slower quarter qualifies. Default 4.
+    pub uneven_pace_ratio: f64,
 }
 impl Default for Options {
     fn default() -> Self {
@@ -82,6 +90,7 @@ impl Default for Options {
             minimum_stage_wall: Duration::from_millis(30),
             weight_difference: 0.15,
             negligible_stage_share: 0.02,
+            uneven_pace_ratio: 4.0,
         }
     }
 }
@@ -120,6 +129,14 @@ pub enum Kind {
     CallbackInterval,
     /// Sequential stages took very different shares of time than their weights.
     StageWeights,
+    /// A task's units took very different times in different parts of its
+    /// run, so its progress, and any smoothing of it, misjudge the rest.
+    UnevenPace,
+    /// A phase, or code measured without a progress tree, ran its
+    /// checkpoints in separate stretches, one source location's after
+    /// another's: candidate stages, with weights from their shares of time.
+    /// Reported only with the `stage-suggestions` feature.
+    SuggestedStages,
     /// Dropped spans, saturated counts, or clock trouble limit the advice.
     IncompleteEvidence,
 }
@@ -692,6 +709,34 @@ impl Trace {
                         "No stop check at the target cadence was recorded inside this interval either. Consider reporting completed units and checking cancellation here; step(n) does both."
                     }));
             }
+            if counts_units(self, span)
+                && span.stats.reports >= 8
+                && span.elapsed() >= options.minimum_stage_wall
+                && let Some(pace) = &span.stats.unit_pace
+            {
+                let q = &pace.quarters;
+                let fastest = q[0].min(q[1]).min(q[2]).min(q[3]);
+                let slowest = q[0].max(q[1]).max(q[2]).max(q[3]);
+                // A fastest quarter under the clock's resolution (reports in
+                // one tick) is the strongest contrast, not missing evidence.
+                if !slowest.is_zero()
+                    && slowest.as_secs_f64() >= fastest.as_secs_f64() * options.uneven_pace_ratio
+                {
+                    findings.push(finding(Kind::UnevenPace, format!(
+                            "task {:?}: the quarters of its {} units took {:.2}, {:.2}, {:.2} and {:.2} ms",
+                            span.task, span.stats.units, ms(q[0]), ms(q[1]), ms(q[2]), ms(q[3])
+                        ), "Progress, and display smoothing between reports, assume a phase's units cost about the same. If the change comes from the work itself (a different step), split the phase into stages where it changes, weighted by these times. If it comes from the input, report a unit that tracks the cost, such as bytes or pixels rather than items. The first quarter runs from the span's start, which for a phase measured by DiagnosticPulse is its first activity."));
+                }
+            }
+            #[cfg(feature = "stage-suggestions")]
+            {
+                if is_leaf_or_bare(self, span)
+                    && span.elapsed() >= options.minimum_stage_wall
+                    && let Some(found) = suggested_stages(span, options)
+                {
+                    findings.push(found);
+                }
+            }
             let seconds = span.elapsed().as_secs_f64();
             if seconds > 0.0 {
                 for &(kind, threshold, advice) in &[
@@ -1050,6 +1095,240 @@ fn stage_weight_finding(trace: &Trace, parent: &Snapshot, options: &Options) -> 
         advice: "Repeat across representative inputs before changing weights. Wall time includes waits and may shift with hardware, scheduling, or configuration.".into(),
         sample_code: Some(code),
     })
+}
+
+/// A span of a leaf phase, or one with no phase at all (stop-only code).
+#[cfg(feature = "stage-suggestions")]
+fn is_leaf_or_bare(trace: &Trace, span: &SpanRecord) -> bool {
+    match (span.node, &trace.progress) {
+        (Some(node), Some(root)) => find_node(root, node).is_some_and(|p| p.children.is_empty()),
+        _ => true,
+    }
+}
+
+/// One stretch of a span's run: source locations whose timed calls overlap.
+#[cfg(feature = "stage-suggestions")]
+#[derive(Clone, Copy)]
+struct Stretch {
+    start: Duration,
+    end: Duration,
+    time: Duration,
+    busiest: Option<usize>,
+    checks: u64,
+    units: u64,
+}
+
+/// Stages to declare in one span, from when each of its source locations
+/// was active and how much time each one ended.
+#[cfg(feature = "stage-suggestions")]
+fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
+    let stages = group_stages(span, options)?;
+    Some(render_stages(span, &stages))
+}
+
+#[cfg(feature = "stage-suggestions")]
+struct GroupedStages {
+    stretches: Vec<Stretch>,
+    total: Duration,
+    omitted: Duration,
+    last_site: usize,
+}
+
+/// Group overlapping source locations and fold stretches too small to calibrate.
+#[cfg(feature = "stage-suggestions")]
+fn group_stages(span: &SpanRecord, options: &Options) -> Option<GroupedStages> {
+    let sites = &span.stats.sites;
+    // Shortest window first, so the order depends on when each location ran,
+    // which is stable from run to run, rather than on near-equal times. A
+    // location whose calls overlap one stretch joins it. One overlapping
+    // several either carries more time than they do, and is the main work
+    // around short steps (they merge into it), or less, and is an outer loop
+    // around them (left out).
+    let window = |i: usize| match sites[i].active {
+        Some((first, last)) => last.saturating_sub(first),
+        None => Duration::MAX,
+    };
+    let order = sorted_indices(sites.len(), &|a, b| window(a).cmp(&window(b)));
+    let mut found: Vec<Stretch> = Vec::new();
+    // Time ending at outer-loop locations, left out of the stretches.
+    let mut omitted = Duration::ZERO;
+    let (mut last_site, mut last_call) = (None, span.start);
+    for &i in &order {
+        let site = &sites[i];
+        let Some((first, last)) = site.active else {
+            break;
+        };
+        if last_site.is_none() || last > last_call {
+            (last_site, last_call) = (Some(i), last);
+        }
+        let overlaps = |s: &Stretch| first < s.end && s.start < last;
+        let (mut count, mut covered) = (0, Duration::ZERO);
+        for stretch in &found {
+            if overlaps(stretch) {
+                count += 1;
+                covered += stretch.time;
+            }
+        }
+        let mut next = Stretch {
+            start: first,
+            end: last,
+            time: site.time,
+            busiest: Some(i),
+            checks: site.checks,
+            units: site.units,
+        };
+        if count > 1 && site.time < covered {
+            omitted += site.time;
+            continue;
+        }
+        let mut k = 0;
+        while k < found.len() {
+            if overlaps(&found[k]) {
+                let stretch = found.swap_remove(k);
+                absorb(&mut next, stretch, sites);
+            } else {
+                k += 1;
+            }
+        }
+        found.push(next);
+    }
+    let last_site = last_site?;
+    // In the order they ran, then the time after the last check, which no
+    // location ended.
+    let by_start = sorted_indices(found.len(), &|a, b| found[a].start.cmp(&found[b].start));
+    let mut stretches = Vec::with_capacity(found.len() + 1);
+    let mut total = Duration::ZERO;
+    for &k in &by_start {
+        total += found[k].time;
+        stretches.push(found[k]);
+    }
+    let tail = span.end.saturating_sub(last_call);
+    total += tail;
+    stretches.push(Stretch {
+        start: last_call,
+        end: span.end,
+        time: tail,
+        busiest: None,
+        checks: 0,
+        units: 0,
+    });
+    // A stretch too small to calibrate joins the one before it, and a small
+    // first stretch takes in the one after it.
+    let small = total.as_secs_f64() * options.negligible_stage_share;
+    let mut kept = 0;
+    for k in 0..stretches.len() {
+        let next = stretches[k];
+        if kept > 0
+            && (next.time.as_secs_f64() < small
+                || (kept == 1 && stretches[0].time.as_secs_f64() < small))
+        {
+            absorb(&mut stretches[kept - 1], next, sites);
+        } else {
+            stretches[kept] = next;
+            kept += 1;
+        }
+    }
+    if !matches!(kept, 2..=16) {
+        return None;
+    }
+    stretches.truncate(kept);
+    Some(GroupedStages {
+        stretches,
+        total,
+        omitted,
+        last_site,
+    })
+}
+
+/// Render a grouping as evidence and a candidate Stages declaration.
+#[cfg(feature = "stage-suggestions")]
+fn render_stages(span: &SpanRecord, stages: &GroupedStages) -> Finding {
+    use core::fmt::Write as _;
+    let GroupedStages {
+        stretches,
+        total,
+        omitted,
+        last_site,
+    } = stages;
+    let sites = &span.stats.sites;
+    let kept = stretches.len();
+    let mut shares = Vec::with_capacity(kept);
+    for stretch in stretches {
+        shares.push(stretch.time.as_secs_f64() / total.as_secs_f64());
+    }
+    let weights = percent_weights(&shares);
+    let evidence = if omitted.is_zero() {
+        format!(
+            "task {:?}: its checkpoints ran in {kept} stretches, one after another; the sample code lists them with this run's shares of time",
+            span.task
+        )
+    } else {
+        format!(
+            "task {:?}: its checkpoints ran in {kept} stretches, one after another; {:.1} ms ({:.0}%) of the timed intervals ended at locations spanning several stretches (outer loops), and the weights spread that time over the stretches in proportion",
+            span.task,
+            ms(*omitted),
+            100.0 * omitted.as_secs_f64() / (*total + *omitted).as_secs_f64()
+        )
+    };
+    let mut code = String::from("Stages::new(pulse, &[\n");
+    for k in 0..kept {
+        let stretch = &stretches[k];
+        let (start, end) = (
+            ms(stretch.start.saturating_sub(span.start)),
+            ms(stretch.end.saturating_sub(span.start)),
+        );
+        let tail = stretch.busiest.is_none();
+        let site = &sites[stretch.busiest.unwrap_or(*last_site)];
+        let name = format!(
+            "{}{}:{}",
+            if tail { "after " } else { "" },
+            site.file,
+            site.line
+        );
+        let _ = if tail {
+            writeln!(
+                code,
+                "    PhaseSpec::new({name:?}, {}, Total::Exact(1)), // {start:.1} to {end:.1} ms after the last timed check or report: add checks and units here",
+                weights[k]
+            )
+        } else {
+            let (count, note) = if stretch.units > 0 {
+                (stretch.units, "units reported")
+            } else {
+                (stretch.checks, "checks: report a unit per check")
+            };
+            writeln!(
+                code,
+                "    PhaseSpec::new({name:?}, {}, Total::Estimated({count})), // calls {start:.1} to {end:.1} ms; {:.1} ms of intervals end at them; {count} {note}",
+                weights[k],
+                ms(stretch.time)
+            )
+        };
+    }
+    code.push_str("])");
+    Finding {
+        kind: Kind::SuggestedStages,
+        evidence,
+        advice: "Declaring these as stages (Stages or Phases) lets the bar, and any smoothing of it, follow each part's own pace, and names each part in diagnostics. Give each stage a unit it can report, such as the loop iterations behind its checks. Each range is when a stretch's locations were called; the intervals its weight counts end at those calls, so its work starts before its range (setup before a first check counts toward the first stretch). Locations whose calls span several stretches (outer loops) are left out of the stretches and their time is spread over them. The weights are one run's shares of time: check them across inputs before relying on them.".into(),
+        sample_code: Some(code),
+    }
+}
+
+/// Add `next` to `stretch`, which ran before, around or alongside it.
+#[cfg(feature = "stage-suggestions")]
+fn absorb(stretch: &mut Stretch, next: Stretch, sites: &[crate::profile::SiteStats]) {
+    stretch.start = stretch.start.min(next.start);
+    stretch.end = stretch.end.max(next.end);
+    stretch.time += next.time;
+    stretch.checks = stretch.checks.saturating_add(next.checks);
+    stretch.units = stretch.units.saturating_add(next.units);
+    if let Some(next_site) = next.busiest
+        && stretch
+            .busiest
+            .is_none_or(|current| sites[next_site].time > sites[current].time)
+    {
+        stretch.busiest = Some(next_site);
+    }
 }
 
 /// Whether `span` belongs to work expected to report units: a leaf of the

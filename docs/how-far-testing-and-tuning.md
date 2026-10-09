@@ -155,6 +155,50 @@ than half the bar. Fork-join
 plans, failed stages, incomplete traces and overlapping spans get no weight
 advice.
 
+### Units that change pace
+
+An `UnevenPace` finding says a task's units took very different times in
+different parts of its run: each span records how long each quarter of its
+reported units took (`Stats::unit_pace`), and the finding appears when the
+slowest quarter took at least `Options::uneven_pace_ratio` (4 by default) times
+as long as the fastest, over at least 8 reports and `minimum_stage_wall`.
+The tree's fraction, and any smoothing of it between reports, assume a phase's
+units cost about the same, so such a phase's bar runs fast and then stalls, or
+the reverse. If the change comes from the work itself, split the phase into
+stages where it changes and weight them by the measured times; if it comes
+from the input, report a unit that tracks cost, such as bytes or pixels.
+The first quarter runs from the span's start, which for a phase measured by
+`DiagnosticPulse` is its first activity, so setup before that is not counted.
+A quarter whose reports all landed in one clock reading counts as the fastest
+possible, not as missing evidence. A report that read the clock before reports
+already recorded (a worker preempted on the way) still counts in its quarter.
+
+### Stages a phase could declare
+
+Each span records, per source location, the time of the intervals that ended
+there and when it was first and last called (`SiteStats::time` and
+`SiteStats::active`; reports count only with report timing on). With the
+`stage-suggestions` feature, a `SuggestedStages` finding appears when a leaf
+phase, or code measured without a progress tree such as a codec's `Stop`
+checks, ran its checkpoints in separate stretches. Locations are taken in order
+of how long they were active, shortest first, which is stable from run to run.
+One whose calls overlap a single stretch joins it. One overlapping several
+merges them if it carries more time than they do (the main work around short
+steps), and otherwise is an outer loop around them and is left out. The time
+after the last check becomes a stage of
+its own, named after that check, since nothing in it can be stopped or
+reported. A stretch under `Options::negligible_stage_share` of the time joins
+its neighbor. The sample code lists one `PhaseSpec` per stretch, named by the file
+and line of its busiest location, weighted by its share of the time, with
+the units it reported (or its checks) as an estimated total. Time ending at
+an outer loop's location is spread over the stretches in proportion, and the
+evidence says how much. Each comment's range is when the stretch's locations
+were called: the intervals its weight counts end at those calls, so a stage's
+work starts before its range, as setup before a first check does. The final
+stage starts at the last timed check or report. Locations that
+alternate inside one loop form a single stretch, so they never suggest a
+split. One run gives candidates; check the weights across inputs.
+
 ### Defaults and cost
 
 The default targets are 10 ms between cancellation checks, 50 ms between
