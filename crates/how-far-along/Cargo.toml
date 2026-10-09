@@ -16,6 +16,8 @@ std = ["enough/std"]
 callback = []
 adapters = ["how-far/adapters"]
 json = []
+# `ProgressSmoother`: smooths a display's fraction between reports.
+smooth = []
 
 [dependencies]
 enough = { workspace = true, features = ["alloc"] }

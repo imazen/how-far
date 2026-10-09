@@ -43,3 +43,7 @@ check-hosts runs="100":
 # Resolve the separate harness and every dependency, including path patches.
 stage-metadata:
     cargo metadata --manifest-path dev/stage-suggestions/Cargo.toml --format-version 1
+
+# Exercise the display smoother without std or other default features.
+check-smooth: check
+    cargo test -p how-far-along --no-default-features --features smooth --color never

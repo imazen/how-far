@@ -130,6 +130,20 @@ observes once after finishing the root. `LocalPoller` drives thread-affine UI
 callbacks from the host. `Paced::finish` flushes the final batch and checks;
 its Drop only counts.
 
+Smoothness is the display's concern, not the library's. A library reports at
+the granularity its own loop has. how-far-along's optional `smooth` feature
+adds `ProgressSmoother`, which a display holds per observed tree of one
+operation; libraries never see it. It watches each
+running leaf's counts at poll time, using the caller's clock (the tracker reads
+none), and between reports moves the leaf on at that leaf's own average pace:
+at most the latest change past its recorded count and at most half the work it
+has left, so extrapolation alone never completes a stage. Recorded outcomes
+win: a finished leaf shows the snapshot's record and a revised total starts the
+leaf over, so the display steps back when a stage fails or its total rises.
+A change is timed when a poll first sees it, so the resolution is the poll
+interval. Accuracy depends on the library declaring stages whose units cost
+about the same; the smoother cannot find boundaries a library left out.
+
 ## Synchronization and portability
 
 Counters use saturating relaxed atomics. They carry no application data and

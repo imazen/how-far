@@ -49,6 +49,7 @@ jobs:
         run: |
           cargo test -p how-far --no-default-features
           cargo test -p how-far-along --no-default-features
+          cargo test -p how-far-along --no-default-features --features smooth
 
   cross-platform:
     name: Cross (${{ matrix.target }})
@@ -121,8 +122,8 @@ jobs:
           cargo build -p how-far --target wasm32-unknown-unknown
           cargo build -p how-far-along --target thumbv7em-none-eabihf --no-default-features
           cargo build -p how-far-along --target wasm32-unknown-unknown --no-default-features
-          cargo build -p how-far-along --target thumbv7em-none-eabihf --no-default-features --features callback,adapters,json
-          cargo build -p how-far-along --target wasm32-unknown-unknown --no-default-features --features callback,adapters,json
+          cargo build -p how-far-along --target thumbv7em-none-eabihf --no-default-features --features callback,adapters,json,smooth
+          cargo build -p how-far-along --target wasm32-unknown-unknown --no-default-features --features callback,adapters,json,smooth
           # The example libraries adopt how-far as no_std + alloc codecs do.
           cargo build -p how-far-example-codec -p how-far-example-pipeline --target thumbv7em-none-eabihf --no-default-features --features how-far-example-pipeline/adapters
 
