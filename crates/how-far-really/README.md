@@ -72,3 +72,6 @@ Times and unit totals are strings, to avoid JavaScript precision loss; call
 counts and identifiers are JSON numbers.
 See the [example crates](../../examples/how-far-app/README.md) and
 [design and API boundaries](../../docs/how-far-design.md).
+
+The [tested integration guide](../../docs/how-far-integration.md) connects
+library code, caller-owned completion, diagnostics and display smoothing.

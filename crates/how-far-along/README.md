@@ -65,3 +65,6 @@ use how_far_along::diagnostics::DiagnosticPulse;
 Tracking JSON uses schema version 2 (`NotStarted` and inferred-completion evidence).
 See [the example application](../../examples/how-far-app/README.md) and
 [design and API boundaries](../../docs/how-far-design.md).
+
+The [tested integration guide](../../docs/how-far-integration.md) connects
+library code, caller-owned completion, diagnostics and display smoothing.
