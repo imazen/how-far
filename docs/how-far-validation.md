@@ -72,3 +72,14 @@ Later cleanup measurements are recorded separately: [pace](../benchmarks/pace-cl
 [stage grouping](../benchmarks/stage-cleanup-2026-10-08.md), and
 [smoothing](../benchmarks/smoother-cleanup-2026-10-08.md). Treat each result as
 belonging to its recorded revision and command, rather than as a live counter.
+
+## Real-library adoption checks
+
+[Zenresize PR 16](https://github.com/imazen/zenresize/pull/16) covers u8 resampling,
+optional post-processing, padded rows and cancellation. The pinned
+[zenpng adoption fixture](how-far-integration.md#adoption-review) covers RGB8 Fast
+compression, byte parity, serial/parallel execution, padded input and nesting.
+These test the same library-owned phases and caller-owned completion as the
+synthetic examples. They do not extend either library's other entry points.
+Run the fixture explicitly with `just check-encoder <destination>`; it is not
+part of the how-far workspace CI matrix.

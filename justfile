@@ -52,3 +52,12 @@ check-smooth: check
 check-integration:
     cargo test -p how-far-example-app --all-features --color never
     cargo run -p how-far-example-app --example integration --color never
+
+# Materialize a new fixture directory; existing directories are protected.
+prepare-encoder source destination:
+    python3 dev/adopt-zenpng.py "{{source}}" "{{destination}}"
+
+# Test a materialized real encoder with progress enabled and disabled.
+check-encoder destination:
+    cargo test --manifest-path "{{destination}}/probe/Cargo.toml" --features progress
+    cargo check --manifest-path "{{destination}}/probe/Cargo.toml" --no-default-features

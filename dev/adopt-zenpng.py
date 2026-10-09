@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Materialize a pinned real PNG encoder adoption outside its working checkout.
 
-Usage: python3 dev/adopt-zenpng.py /path/to/zenpng /tmp/adoption
+Usage: python3 dev/adopt-zenpng.py /path/to/zenpng ~/tmp/adoption
 Creates base and progress snapshots; never modifies the encoder repository.
 The progress feature compiles out the dependency and every instrumentation site.
 """
 import pathlib, subprocess, sys
-repo, destination = map(pathlib.Path, sys.argv[1:])
+repo, destination = (pathlib.Path(arg).expanduser().resolve() for arg in sys.argv[1:])
+if destination.exists():
+    raise FileExistsError(f"Refusing to overwrite existing adoption: {destination}")
 root = pathlib.Path(__file__).resolve().parent.parent
 revision = '27393eef995aea329cfbc1df5cac5e3f7346b4cb'
 archive = subprocess.check_output(['git', 'archive', revision], cwd=repo)
@@ -123,6 +125,7 @@ progress=["zenpng/progress","dep:how-far-along"]
 [dependencies]
 zenpng={{path="../progress",default-features=false}}
 enough="0.4.5"
+whereat="0.1.4"
 how-far-along={{path="{root}/crates/how-far-along",features=["callback"],optional=true}}
 imgref="1.12"
 rgb="0.8"

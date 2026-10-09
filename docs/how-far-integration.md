@@ -164,7 +164,37 @@ examples cover those ownership and error contracts with a synthetic codec;
 they do not replace pixel/output parity tests in a real library.
 
 The external [zenresize pilot](https://github.com/imazen/zenresize/pull/16)
-exercises real u8 resizing and optional post-processing. Its original draft
-used `Steps`, exposed planning failures, and completed the borrowed caller
-phase. Those are migration points to review against the contract above;
-other pixel formats and streaming APIs need their own adoption work.
+exercises real u8 resizing and optional post-processing. The updated draft uses `Stages`, returns ordinary `StopReason`, and leaves the
+borrowed phase to its caller. Its tests cover exact cancellation, rejected
+observations and patterned padded input through all four post-pass combinations.
+Other pixel formats and streaming APIs need their own adoption work.
+
+The encoder adoption is a [zenpng fixture](../dev/adopt-zenpng.py), not an open
+encoder PR. It materializes pinned zenpng commit
+`27393eef995aea329cfbc1df5cac5e3f7346b4cb` and adds optional progress at existing
+compression phase boundaries. From the how-far root, use a new destination:
+
+```sh
+just prepare-encoder ../zen/zenpng "$HOME/tmp/howfar-encoder"
+just check-encoder "$HOME/tmp/howfar-encoder"
+```
+
+The generator reads the source checkout's lockfile; the probe resolves its own
+lockfile in the destination. Preserve those files when recording measurements.
+The [probe](../dev/encoder-probe.rs) checks encoded-byte parity with the existing
+API for serial and parallel compression, caller-owned completion, cancellation
+after actual encoder work, preservation of the old cancellation API, and a
+padded RGB8 image inside a caller's plan. Foreign `whereat::At<PngError>` errors
+use `complete_classified` with an explicit classifier instead of a new wrapper
+error. The optional progress dependency also compiles out.
+
+This fixture covers RGB8 with the Fast compression preset; it does not establish
+adoption for all pixel formats, presets, animation or streaming. The pinned
+encoder emits existing magetypes deprecation warnings with the resolved
+0.9.30 dependency. The older [zenav1 measurement](how-far-zenav1-measurement.md)
+is a separate dated experiment, not a current integration PR.
+
+The main ergonomic cost left for ordinary libraries is explicit result handoff
+and error classification. The prelude supplies the extension traits, and
+`complete_with` keeps early returns inside the handoff. Tests should still catch
+forgotten completion: neither `?` nor Drop can infer a returned result.

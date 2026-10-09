@@ -28,9 +28,17 @@ fn old(data: &[Rgb<u8>], size: usize, config: &EncodeConfig) -> Vec<u8> {
     .unwrap()
 }
 #[cfg(feature = "progress")]
-fn encode(data: &[Rgb<u8>], size: usize, config: &EncodeConfig, p: &dyn Pulse) -> Vec<u8> {
+fn encode(
+    data: &[Rgb<u8>],
+    size: usize,
+    config: &EncodeConfig,
+    p: &dyn Pulse,
+) -> Result<Vec<u8>, whereat::At<zenpng::PngError>> {
     zenpng::encode_rgb8_with_pulse(ImgRef::new(data, size, size), None, config, p, &Unstoppable)
-        .unwrap()
+}
+#[cfg(feature = "progress")]
+fn is_stop(error: &whereat::At<zenpng::PngError>) -> bool {
+    matches!(error.error(), zenpng::PngError::Stopped(_))
 }
 fn main() {
     let args: Vec<_> = std::env::args().collect();
@@ -45,20 +53,18 @@ fn main() {
         let output = match mode {
             "old" => old(&data, size, &config),
             #[cfg(feature = "progress")]
-            "nopulse" => encode(&data, size, &config, &NoPulse),
+            "nopulse" => encode(&data, size, &config, &NoPulse).unwrap(),
             #[cfg(feature = "progress")]
             "tree" => {
                 let tree = PulseTree::new(Phase::new("png", Total::Unknown), Unstoppable);
-                let output = encode(&data, size, &config, &tree);
-                tree.finish(Outcome::Succeeded).unwrap();
-                output
+                let result = encode(&data, size, &config, &tree);
+                tree.complete_classified(result, is_stop).unwrap()
             }
             #[cfg(feature = "progress")]
             "callback" => {
                 let pulse = FnPulse::new("png", |_| Ok(()));
-                let output = encode(&data, size, &config, &pulse);
-                pulse.finish(Outcome::Succeeded).unwrap();
-                output
+                let result = encode(&data, size, &config, &pulse);
+                pulse.complete_classified(result, is_stop).unwrap()
             }
             _ => panic!("unknown mode"),
         };
@@ -84,8 +90,9 @@ mod tests {
             let baseline = old(&data, size, &config);
             let tree = PulseTree::new(Phase::new("png", Total::Unknown), Unstoppable);
             let observer = tree.observer();
-            assert_eq!(encode(&data, size, &config, &tree), baseline);
-            tree.finish(Outcome::Succeeded).unwrap();
+            let result = encode(&data, size, &config, &tree);
+            assert_eq!(observer.snapshot().status, Status::Running);
+            assert_eq!(tree.complete_classified(result, is_stop).unwrap(), baseline);
             let snapshot = observer.snapshot();
             assert_eq!(snapshot.children.len(), 4);
             assert!(
@@ -109,19 +116,18 @@ mod tests {
             }
         });
         let observer = pulse.observer();
-        let error = zenpng::encode_rgb8_with_pulse(
+        let result = zenpng::encode_rgb8_with_pulse(
             ImgRef::new(&data, size, size),
             None,
             &config,
             &pulse,
             &Unstoppable,
-        )
-        .unwrap_err();
+        );
+        let error = pulse.complete_classified(result, is_stop).unwrap_err();
         assert!(matches!(
             error.error(),
             zenpng::PngError::Stopped(StopReason::Cancelled)
         ));
-        pulse.finish(Outcome::Cancelled).unwrap();
         let snapshot = observer.snapshot();
         assert!(snapshot.children[0].completed > 0);
         assert_eq!(
@@ -150,6 +156,40 @@ mod tests {
             &Cancel,
             &Unstoppable,
         );
-        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err().error(),
+            zenpng::PngError::Stopped(StopReason::Cancelled)
+        ));
+    }
+    #[test]
+    fn padded_input_nests_in_a_caller_plan_without_changing_encoded_bytes() {
+        let size = 31;
+        let data = pixels(size);
+        let stride = size + 7;
+        let mut padded = vec![Rgb::new(0xA5, 0xA5, 0xA5); stride * size];
+        for y in 0..size {
+            padded[y * stride..y * stride + size].copy_from_slice(&data[y * size..(y + 1) * size]);
+        }
+        let config = EncodeConfig::default().with_compression(Compression::Fast);
+        let expected = old(&data, size, &config);
+        let root = PulseTree::new(Phase::new("pipeline", Total::Unknown), Unstoppable);
+        let observer = root.observer();
+        let result = Stages::new(&root, &[PhaseSpec::new("encode", 1, Total::Unknown)])
+            .complete_with_classified(is_stop, |stages| {
+                stages.run_classified(is_stop, |stage| {
+                    zenpng::encode_rgb8_with_pulse(
+                        ImgRef::new_stride(&padded, size, size, stride),
+                        None,
+                        &config,
+                        stage,
+                        &Unstoppable,
+                    )
+                })
+            });
+        assert_eq!(observer.snapshot().status, Status::Running);
+        assert_eq!(root.complete_classified(result, is_stop).unwrap(), expected);
+        let snapshot = observer.snapshot();
+        assert_eq!(snapshot.status, Status::Finished(Outcome::Succeeded));
+        assert_eq!(snapshot.children[0].children.len(), 4);
     }
 }
