@@ -39,3 +39,7 @@ check-hosts runs="100":
     for ((run = 1; run <= {{runs}}; run++)); do
         cargo test -p how-far-really --all-features --test hosts --color never
     done
+
+# Resolve the separate harness and every dependency, including path patches.
+stage-metadata:
+    cargo metadata --manifest-path dev/stage-suggestions/Cargo.toml --format-version 1

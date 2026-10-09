@@ -1,0 +1,184 @@
+run-heavy: mem-cap=24G (cgroup, hard) jobs=28/32 avail=47741MiB :: /home/lilith/work/how-far/dev/stage-suggestions/target/release/stage-suggestions --json /home/lilith/tmp/stage-suggestions/final/run-2 zenflate-effort200-small zenpng-decode-balanced zenjpeg-encode-progressive-4k zenjpeg-decode-progressive-4k zenwebp-lossy-m6-1024 zenwebp-lossless-2048 zengif-encode-64f zenbitmaps-pam-8k zenzop-squeeze-enhanced-4mb butteraugli-2048 fast-ssim2-2048
+=== zenflate-effort200-small [zenflate]
+  effort 200 on 256KB — checks whether small inputs still see poll traffic
+  ok: 262144B -> 89601B in 10.780550535s
+  wall 10780.5 ms, 3265 checks at 12 locations; first call at 0.5 ms, nothing timed for the last 6.4 ms
+  zenflate        99.9%       0.5 to  10774.2 ms       3265 checks
+       92.9%      22.8 to  10767.8 ms       2775 checks  src/compress/full_optimal.rs:1096
+        5.1%     112.4 to  10664.6 ms        184 checks  src/compress/full_optimal.rs:1641
+        1.0%      15.0 to  10611.0 ms        184 checks  src/compress/full_optimal.rs:1602
+        0.7%      19.3 to    109.9 ms         28 checks  src/compress/full_optimal.rs:1136
+
+=== zenpng-decode-balanced [zenpng]
+  decode a Balanced-compressed 2048x2048 PNG (decode poll pattern)
+  ok: 6071861B png -> 2048x2048 in 46.995392ms
+  wall 47.0 ms, 2048 checks at 2 locations; first call at 3.9 ms, nothing timed for the last 0.0 ms
+  SuggestedStages: task "zenpng-decode-balanced": its checkpoints ran in 2 stretches, one after another; the sample code lists them with this run's shares of time
+  Declaring these as stages (Stages or Phases) lets the bar, and any smoothing of it, follow each part's own pace, and names each part in diagnostics. Give each stage a unit it can report, such as the loop iterations behind its checks. Each range is when a stretch's locations were called; the intervals its weight counts end at those calls, so its work starts before its range (setup before a first check counts toward the first stretch). Locations whose calls span several stretches (outer loops) are left out of the stretches and their time is spread over them. The weights are one run's shares of time: check them across inputs before relying on them.
+Stages::new(pulse, &[
+    PhaseSpec::new("/home/lilith/work/zen/zenpng/src/decoder/mod.rs:298", 8, Total::Estimated(1)), // calls 3.9 to 3.9 ms; 3.9 ms of intervals end at them; 1 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenpng/src/decoder/mod.rs:315", 92, Total::Estimated(2047)), // calls 3.9 to 47.0 ms; 43.1 ms of intervals end at them; 2047 checks: report a unit per check
+])
+
+  zenpng         100.0%       3.9 to     47.0 ms       2048 checks
+       91.7%       3.9 to     47.0 ms       2047 checks  src/decoder/mod.rs:315
+        8.3%       3.9 to      3.9 ms          1 checks  src/decoder/mod.rs:298
+
+=== zenjpeg-encode-progressive-4k [zenjpeg]
+  EncodeRequest progressive encode of 3840x2160 RGBA
+  ok: 3840x2160 -> 2217903B jpeg in 187.803239ms
+  wall 187.8 ms, 271 checks at 2 locations; first call at 0.3 ms, nothing timed for the last 119.5 ms
+  SuggestedStages: task "zenjpeg-encode-progressive-4k": its checkpoints ran in 2 stretches, one after another; the sample code lists them with this run's shares of time
+  Declaring these as stages (Stages or Phases) lets the bar, and any smoothing of it, follow each part's own pace, and names each part in diagnostics. Give each stage a unit it can report, such as the loop iterations behind its checks. Each range is when a stretch's locations were called; the intervals its weight counts end at those calls, so its work starts before its range (setup before a first check counts toward the first stretch). Locations whose calls span several stretches (outer loops) are left out of the stretches and their time is spread over them. The weights are one run's shares of time: check them across inputs before relying on them.
+Stages::new(pulse, &[
+    PhaseSpec::new("/home/lilith/work/zen/zenjpeg/zenjpeg/src/encode/streaming.rs:670", 36, Total::Estimated(271)), // calls 0.3 to 68.3 ms; 68.3 ms of intervals end at them; 271 checks: report a unit per check
+    PhaseSpec::new("after /home/lilith/work/zen/zenjpeg/zenjpeg/src/encode/streaming.rs:670", 64, Total::Exact(1)), // 68.3 to 187.8 ms after the last timed check or report: add checks and units here
+])
+
+  zenjpeg         36.4%       0.3 to     68.3 ms        271 checks
+       36.2%       0.3 to     68.3 ms        270 checks  src/encode/streaming.rs:670
+        0.1%       0.3 to      0.3 ms          1 checks  src/encode/byte_encoders.rs:268
+
+=== zenjpeg-decode-progressive-4k [zenjpeg]
+  DecodeConfig::decode on a large progressive JPEG
+  ok: 2217903B jpeg -> 3840x2160 in 121.288153ms
+  wall 121.3 ms, 493 checks at 4 locations; first call at 0.0 ms, nothing timed for the last 47.6 ms
+  SuggestedStages: task "zenjpeg-decode-progressive-4k": its checkpoints ran in 4 stretches, one after another; 2.9 ms (2%) of the timed intervals ended at locations spanning several stretches (outer loops), and the weights spread that time over the stretches in proportion
+  Declaring these as stages (Stages or Phases) lets the bar, and any smoothing of it, follow each part's own pace, and names each part in diagnostics. Give each stage a unit it can report, such as the loop iterations behind its checks. Each range is when a stretch's locations were called; the intervals its weight counts end at those calls, so its work starts before its range (setup before a first check counts toward the first stretch). Locations whose calls span several stretches (outer loops) are left out of the stretches and their time is spread over them. The weights are one run's shares of time: check them across inputs before relying on them.
+Stages::new(pulse, &[
+    PhaseSpec::new("/home/lilith/work/zen/zenjpeg/zenjpeg/src/decode/parser/progressive.rs:229", 20, Total::Estimated(270)), // calls 8.7 to 23.7 ms; 23.7 ms of intervals end at them; 270 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenjpeg/zenjpeg/src/entropy/decoder.rs:1717", 10, Total::Estimated(102)), // calls 23.8 to 36.5 ms; 12.1 ms of intervals end at them; 102 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenjpeg/zenjpeg/src/entropy/decoder.rs:2131", 30, Total::Estimated(102)), // calls 36.5 to 73.3 ms; 35.0 ms of intervals end at them; 102 checks: report a unit per check
+    PhaseSpec::new("after /home/lilith/work/zen/zenjpeg/zenjpeg/src/decode/parser/mod.rs:820", 40, Total::Exact(1)), // 73.7 to 121.3 ms after the last timed check or report: add checks and units here
+])
+
+  zenjpeg         60.8%       0.0 to     73.7 ms        493 checks
+       28.9%      36.5 to     73.3 ms        102 checks  src/entropy/decoder.rs:2131
+       19.5%       8.7 to     23.7 ms        270 checks  src/decode/parser/progressive.rs:229
+       10.0%      23.8 to     36.5 ms        102 checks  src/entropy/decoder.rs:1717
+        2.4%       0.0 to     73.7 ms         19 checks  src/decode/parser/mod.rs:820
+
+=== zenwebp-lossy-m6-1024 [zenwebp]
+  EncodeRequest::lossy method=6 (full trellis) on 1024x1024 RGBA
+  ok: 1024x1024 -> 83452B webp in 577.464156ms
+  wall 577.5 ms, 917 checks at 25 locations; first call at 0.0 ms, nothing timed for the last 0.1 ms
+  SuggestedStages: task "zenwebp-lossy-m6-1024": its checkpoints ran in 4 stretches, one after another; 41.8 ms (7%) of the timed intervals ended at locations spanning several stretches (outer loops), and the weights spread that time over the stretches in proportion
+  Declaring these as stages (Stages or Phases) lets the bar, and any smoothing of it, follow each part's own pace, and names each part in diagnostics. Give each stage a unit it can report, such as the loop iterations behind its checks. Each range is when a stretch's locations were called; the intervals its weight counts end at those calls, so its work starts before its range (setup before a first check counts toward the first stretch). Locations whose calls span several stretches (outer loops) are left out of the stretches and their time is spread over them. The weights are one run's shares of time: check them across inputs before relying on them.
+Stages::new(pulse, &[
+    PhaseSpec::new("/home/lilith/work/zen/zenwebp/src/encoder/vp8/mod.rs:2020", 18, Total::Estimated(257)), // calls 0.0 to 99.1 ms; 99.1 ms of intervals end at them; 257 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenwebp/src/encoder/vp8l/transforms.rs:2033", 3, Total::Estimated(32)), // calls 105.3 to 113.4 ms; 14.3 ms of intervals end at them; 32 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenwebp/src/encoder/vp8l/transforms.rs:545", 72, Total::Estimated(335)), // calls 116.3 to 536.3 ms; 383.8 ms of intervals end at them; 335 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenwebp/src/encoder/vp8l/cost_model.rs:590", 7, Total::Estimated(133)), // calls 539.0 to 577.5 ms; 38.4 ms of intervals end at them; 133 checks: report a unit per check
+])
+
+  zenwebp        100.0%       0.0 to    577.4 ms        917 checks
+       63.1%     116.3 to    482.6 ms        192 checks  src/encoder/vp8l/transforms.rs:545
+       17.1%      23.8 to     99.1 ms        256 checks  src/encoder/vp8/mod.rs:2020
+        5.2%     488.2 to    575.1 ms         34 checks  src/encoder/vp8l/hash_chain.rs:167
+        4.7%     539.0 to    564.2 ms         32 checks  src/encoder/vp8l/cost_model.rs:590
+
+=== zenwebp-lossless-2048 [zenwebp]
+  lossless encode 2048x2048 (VP8L backward-refs heavy path)
+  ok: 2048x2048 -> 6155124B lossless webp in 1.653483585s
+  wall 1653.5 ms, 3104 checks at 23 locations; first call at 36.9 ms, nothing timed for the last 8.0 ms
+  SuggestedStages: task "zenwebp-lossless-2048": its checkpoints ran in 9 stretches, one after another; 367.2 ms (22%) of the timed intervals ended at locations spanning several stretches (outer loops), and the weights spread that time over the stretches in proportion
+  Declaring these as stages (Stages or Phases) lets the bar, and any smoothing of it, follow each part's own pace, and names each part in diagnostics. Give each stage a unit it can report, such as the loop iterations behind its checks. Each range is when a stretch's locations were called; the intervals its weight counts end at those calls, so its work starts before its range (setup before a first check counts toward the first stretch). Locations whose calls span several stretches (outer loops) are left out of the stretches and their time is spread over them. The weights are one run's shares of time: check them across inputs before relying on them.
+Stages::new(pulse, &[
+    PhaseSpec::new("/home/lilith/work/zen/zenwebp/src/encoder/vp8l/transforms.rs:474", 3, Total::Estimated(1)), // calls 36.9 to 36.9 ms; 36.9 ms of intervals end at them; 1 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenwebp/src/encoder/vp8l/transforms.rs:545", 38, Total::Estimated(64)), // calls 36.9 to 528.7 ms; 491.8 ms of intervals end at them; 64 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenwebp/src/encoder/vp8l/transforms.rs:751", 2, Total::Estimated(32)), // calls 536.9 to 557.5 ms; 28.8 ms of intervals end at them; 32 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenwebp/src/encoder/vp8l/transforms.rs:1470", 26, Total::Estimated(65)), // calls 557.9 to 894.8 ms; 331.9 ms of intervals end at them; 65 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenwebp/src/encoder/vp8l/backward_refs.rs:520", 11, Total::Estimated(254)), // calls 1176.9 to 1353.1 ms; 142.5 ms of intervals end at them; 254 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenwebp/src/encoder/vp8l/cost_model.rs:590", 4, Total::Estimated(128)), // calls 1388.7 to 1422.0 ms; 51.1 ms of intervals end at them; 128 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenwebp/src/encoder/vp8l/cost_model.rs:686", 3, Total::Estimated(257)), // calls 1429.3 to 1482.1 ms; 44.8 ms of intervals end at them; 257 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenwebp/src/encoder/vp8l/meta_huffman.rs:856", 7, Total::Estimated(1000)), // calls 1482.7 to 1569.6 ms; 87.5 ms of intervals end at them; 1000 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenwebp/src/encoder/vp8l/encode.rs:1350", 6, Total::Estimated(127)), // calls 1583.3 to 1653.5 ms; 71.0 ms of intervals end at them; 127 checks: report a unit per check
+])
+
+  zenwebp         99.5%      36.9 to   1645.5 ms       3104 checks
+       29.7%      36.9 to    528.7 ms         64 checks  src/encoder/vp8l/transforms.rs:545
+       20.1%     557.9 to    889.7 ms         64 checks  src/encoder/vp8l/transforms.rs:1470
+       14.2%     557.6 to   1582.4 ms        131 checks  src/encoder/vp8l/hash_chain.rs:167
+        8.6%    1176.9 to   1353.1 ms        254 checks  src/encoder/vp8l/backward_refs.rs:520
+
+=== zengif-encode-64f [zengif]
+  encode_gif of 64 animated 512x512 frames (palette quantization)
+  ok: 64 frames -> 2902938B gif in 6.116934747s
+  wall 6116.9 ms, 22431 checks at 28 locations; first call at 0.0 ms, nothing timed for the last 0.0 ms
+  SuggestedStages: task "zengif-encode-64f": its checkpoints ran in 4 stretches, one after another; 2768.9 ms (45%) of the timed intervals ended at locations spanning several stretches (outer loops), and the weights spread that time over the stretches in proportion
+  Declaring these as stages (Stages or Phases) lets the bar, and any smoothing of it, follow each part's own pace, and names each part in diagnostics. Give each stage a unit it can report, such as the loop iterations behind its checks. Each range is when a stretch's locations were called; the intervals its weight counts end at those calls, so its work starts before its range (setup before a first check counts toward the first stretch). Locations whose calls span several stretches (outer loops) are left out of the stretches and their time is spread over them. The weights are one run's shares of time: check them across inputs before relying on them.
+Stages::new(pulse, &[
+    PhaseSpec::new("/home/lilith/work/zen/zenquant/src/lib.rs:1769", 2, Total::Estimated(37)), // calls 0.0 to 317.9 ms; 79.6 ms of intervals end at them; 37 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenquant/src/histogram.rs:184", 30, Total::Estimated(1025)), // calls 384.5 to 1467.9 ms; 995.8 ms of intervals end at them; 1025 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenquant/src/median_cut.rs:29", 3, Total::Estimated(10)), // calls 1480.0 to 1637.2 ms; 108.8 ms of intervals end at them; 10 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/zenquant/src/lib.rs:1415", 65, Total::Estimated(160)), // calls 1680.3 to 6116.9 ms; 2163.8 ms of intervals end at them; 160 checks: report a unit per check
+])
+
+  zengif           1.3%       0.0 to   6116.7 ms         68 checks
+        1.3%       0.0 to   6116.7 ms         64 checks  src/encode/encoder.rs:543
+        0.0%       0.0 to      0.0 ms          1 checks  src/encode/encoder.rs:194
+        0.0%       0.0 to      0.0 ms          1 checks  src/quantize/zenquant_impl.rs:213
+        0.0%       0.0 to      0.0 ms          1 checks  src/quantize/zenquant_impl.rs:242
+  zenquant        98.7%       0.0 to   6116.9 ms      22363 checks
+       17.5%    1762.7 to   6111.6 ms         32 checks  src/lib.rs:1415
+       17.3%    1680.3 to   6116.9 ms         64 checks  src/lib.rs:2218
+       16.1%     384.5 to   1371.9 ms       1024 checks  src/histogram.rs:184
+       12.9%    1568.1 to   6078.5 ms       4224 checks  src/median_cut.rs:1214
+
+=== zenbitmaps-pam-8k [zenbitmaps]
+  encode_pam + decode roundtrip of 8K RGBA — fast path, poll-storm watch
+  ok: 132710471B pam, decoded 132710400 bytes in 82.377606ms
+  wall 82.4 ms, 272 checks at 3 locations; first call at 0.0 ms, nothing timed for the last 0.0 ms
+  zenbitmaps     100.0%       0.0 to     82.4 ms        272 checks
+       99.6%       0.0 to     82.0 ms        270 checks  src/pnm/encode.rs:63
+        0.4%      82.4 to     82.4 ms          1 checks  src/pnm/mod.rs:79
+        0.0%       0.0 to      0.0 ms          1 checks  src/pnm/encode.rs:34
+
+=== zenzop-squeeze-enhanced-4mb [zenzop]
+  enhanced zopfli, maxblocks=1 (largest DP per squeeze iter) on 4MB mixed
+  ok: 4194304B -> 1480198B in 17.456263679s
+  wall 17456.3 ms, 601552 checks at 15 locations; first call at 1.2 ms, nothing timed for the last 30.0 ms
+  zenzop          99.8%       1.2 to  17426.2 ms     601552 checks
+       97.3%     216.8 to  17426.2 ms     557039 checks  src/squeeze.rs:386
+        1.1%       1.2 to    186.2 ms      43440 checks  src/lz77.rs:217
+        0.6%    1947.0 to  13989.5 ms         15 checks  src/squeeze.rs:734
+        0.3%     206.5 to  15162.6 ms         17 checks  src/squeeze.rs:351
+
+=== butteraugli-2048 [butteraugli]
+  compare_with_stop on two 2048x2048 sRGB images
+  ok: score 2.640 in 739.420309ms
+  wall 739.4 ms, 2079 checks at 18 locations; first call at 327.3 ms, nothing timed for the last 17.2 ms
+  SuggestedStages: task "butteraugli-2048": its checkpoints ran in 4 stretches, one after another; 192.6 ms (26%) of the timed intervals ended at locations spanning several stretches (outer loops), and the weights spread that time over the stretches in proportion
+  Declaring these as stages (Stages or Phases) lets the bar, and any smoothing of it, follow each part's own pace, and names each part in diagnostics. Give each stage a unit it can report, such as the loop iterations behind its checks. Each range is when a stretch's locations were called; the intervals its weight counts end at those calls, so its work starts before its range (setup before a first check counts toward the first stretch). Locations whose calls span several stretches (outer loops) are left out of the stretches and their time is spread over them. The weights are one run's shares of time: check them across inputs before relying on them.
+Stages::new(pulse, &[
+    PhaseSpec::new("/home/lilith/work/butteraugli/butteraugli/src/precompute.rs:1084", 60, Total::Estimated(1)), // calls 327.3 to 327.3 ms; 327.3 ms of intervals end at them; 1 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/butteraugli/butteraugli/src/blur.rs:1807", 10, Total::Estimated(384)), // calls 327.4 to 408.4 ms; 57.3 ms of intervals end at them; 384 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/butteraugli/butteraugli/src/malta.rs:1487", 27, Total::Estimated(344)), // calls 408.7 to 722.2 ms; 145.1 ms of intervals end at them; 344 checks: report a unit per check
+    PhaseSpec::new("after /home/lilith/work/butteraugli/butteraugli/src/precompute.rs:1667", 3, Total::Exact(1)), // 722.2 to 739.4 ms after the last timed check or report: add checks and units here
+])
+
+  butteraugli     97.7%     327.3 to    722.2 ms       2079 checks
+       44.3%     327.3 to    327.3 ms          1 checks  src/precompute.rs:1084
+       13.5%     378.2 to    704.5 ms        414 checks  src/blur.rs:453
+       10.9%     424.4 to    654.4 ms        288 checks  src/malta.rs:1487
+        5.9%     374.1 to    687.8 ms        432 checks  src/blur.rs:102
+
+=== fast-ssim2-2048 [fast-ssim2]
+  compute_ssimulacra2_with_config on 2048x2048 RGB8 pair (simd)
+  ok: ssim2 73.810 in 656.559275ms
+  wall 656.6 ms, 793 checks at 12 locations; first call at 0.0 ms, nothing timed for the last 0.0 ms
+  SuggestedStages: task "fast-ssim2-2048": its checkpoints ran in 2 stretches, one after another; the sample code lists them with this run's shares of time
+  Declaring these as stages (Stages or Phases) lets the bar, and any smoothing of it, follow each part's own pace, and names each part in diagnostics. Give each stage a unit it can report, such as the loop iterations behind its checks. Each range is when a stretch's locations were called; the intervals its weight counts end at those calls, so its work starts before its range (setup before a first check counts toward the first stretch). Locations whose calls span several stretches (outer loops) are left out of the stretches and their time is spread over them. The weights are one run's shares of time: check them across inputs before relying on them.
+Stages::new(pulse, &[
+    PhaseSpec::new("/home/lilith/work/zen/fast-ssim2/fast-ssim2/src/pipeline/mod.rs:270", 7, Total::Estimated(67)), // calls 0.0 to 48.9 ms; 48.9 ms of intervals end at them; 67 checks: report a unit per check
+    PhaseSpec::new("/home/lilith/work/zen/fast-ssim2/fast-ssim2/src/pipeline/simd.rs:736", 93, Total::Estimated(726)), // calls 49.0 to 656.6 ms; 607.6 ms of intervals end at them; 726 checks: report a unit per check
+])
+
+  fast-ssim2     100.0%       0.0 to    656.6 ms        793 checks
+       40.0%      98.4 to    656.5 ms        480 checks  src/pipeline/simd.rs:736
+       17.4%      98.4 to    656.5 ms         90 checks  src/pipeline/simd.rs:729
+       15.5%      83.8 to    656.5 ms        105 checks  src/pipeline/simd.rs:702
+        8.5%     495.3 to    656.6 ms         21 checks  src/pipeline/simd.rs:1169
+
+run-heavy: done rc=0 44s | peak-RSS 0.98GiB | min-avail 46699MiB | peak-load 19.95
+run2-rc=0
