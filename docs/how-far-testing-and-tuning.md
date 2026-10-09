@@ -155,6 +155,24 @@ than half the bar. Fork-join
 plans, failed stages, incomplete traces and overlapping spans get no weight
 advice.
 
+### Units that change pace
+
+An `UnevenPace` finding says a task's units took very different times in
+different parts of its run: each span records how long each quarter of its
+reported units took (`Stats::unit_pace`), and the finding appears when the
+slowest quarter took at least `Options::uneven_pace_ratio` (4 by default) times
+as long as the fastest, over at least 8 reports and `minimum_stage_wall`.
+The tree's fraction, and any smoothing of it between reports, assume a phase's
+units cost about the same, so such a phase's bar runs fast and then stalls, or
+the reverse. If the change comes from the work itself, split the phase into
+stages where it changes and weight them by the measured times; if it comes
+from the input, report a unit that tracks cost, such as bytes or pixels.
+The first quarter runs from the span's start, which for a phase measured by
+`DiagnosticPulse` is its first activity, so setup before that is not counted.
+A quarter whose reports all landed in one clock reading counts as the fastest
+possible, not as missing evidence. A report that read the clock before reports
+already recorded (a worker preempted on the way) still counts in its quarter.
+
 ### Defaults and cost
 
 The default targets are 10 ms between cancellation checks, 50 ms between

@@ -180,6 +180,20 @@ pub struct ReportGap {
     pub to: Option<SourceSite>,
 }
 
+/// How long each quarter of one span's reported units took, recorded only
+/// when [`Profiler::set_report_timing`] is on and the span reported at least
+/// four times. An estimate: each quarter ends where its last unit was
+/// reported, interpolated between up to 32 sampled reports. The first starts
+/// at the span's start, so work before the first report counts toward it,
+/// and a report that read the clock before reports already recorded counts
+/// from its own reading on.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct UnitPace {
+    /// Wall time of each quarter of the units, in order.
+    pub quarters: [Duration; 4],
+}
+
 /// One span's checkpoint evidence. Gaps include entry and exit, so a span
 /// with no checks still records how long it ran unchecked.
 #[derive(Clone, Debug, Default)]
@@ -200,6 +214,9 @@ pub struct Stats {
     pub max_check_gap_start: Duration,
     /// Longest interval between reports, if report timing was on.
     pub max_report_gap: Option<ReportGap>,
+    /// How long each quarter of the reported units took, if report timing
+    /// was on.
+    pub unit_pace: Option<UnitPace>,
     /// Time spent inside instrumented checks, including any work they ran.
     ///
     /// Timing a check takes a second clock read, so a span times its first
@@ -484,6 +501,13 @@ struct SpanState {
     last_check: u64,
     last_report: u64,
     last_report_site: Option<SourceSite>,
+    /// Timed reports as (time, units so far): every `stride`th one, at most
+    /// `PACE_SAMPLES`, and the latest. `stats.unit_pace` is read from them.
+    start: u64,
+    samples: Vec<(u64, u64)>,
+    stride: u64,
+    until_sample: u64,
+    latest: Option<(u64, u64)>,
     /// Checks since the last report, to tell a coarse reporting unit from
     /// missing cancellation checks.
     window: Window,
@@ -508,6 +532,11 @@ impl SpanState {
             last_check: start,
             last_report: start,
             last_report_site: None,
+            start,
+            samples: Vec::new(),
+            stride: 1,
+            until_sample: 1,
+            latest: None,
             window: Window::new(start),
             site_gaps: Vec::new(),
             check_site: 0,
@@ -530,6 +559,76 @@ impl SpanState {
                 to,
             });
         }
+    }
+
+    /// A timed report that read the clock at `at`, before reports already
+    /// recorded (a worker preempted between reading the clock and locking):
+    /// its `units` count in every sample taken after it.
+    fn late(&mut self, at: u64, units: u64) {
+        for sample in &mut self.samples {
+            if sample.0 > at {
+                sample.1 = sample.1.saturating_add(units);
+            }
+        }
+        if let Some(latest) = &mut self.latest {
+            latest.1 = latest.1.saturating_add(units);
+        }
+    }
+
+    /// Keep a timed report reaching `units` at `now` for `stats.unit_pace`.
+    fn sample(&mut self, now: u64, units: u64) {
+        self.latest = Some((now, units));
+        self.until_sample -= 1;
+        if self.until_sample != 0 {
+            return;
+        }
+        if self.samples.len() == PACE_SAMPLES {
+            // Keep every other sample, and sample half as often from now on.
+            let kept = PACE_SAMPLES / 2;
+            for index in 0..kept {
+                self.samples[index] = self.samples[2 * index + 1];
+            }
+            self.samples.truncate(kept);
+            self.stride = self.stride.saturating_mul(2);
+        }
+        self.until_sample = self.stride;
+        self.samples.push((now, units));
+    }
+
+    /// How long each quarter of the sampled units took; see [`UnitPace`].
+    fn unit_pace(&self) -> Option<UnitPace> {
+        let latest = self.latest?;
+        let total = latest.1;
+        if self.stats.overflowed || self.stats.reports < 4 || total < 4 {
+            return None;
+        }
+        // Entry, the samples, then the latest report.
+        let samples = &self.samples;
+        let count = samples.len() + 2;
+        let point = |i: usize| match i {
+            0 => (self.start, 0),
+            i if i <= samples.len() => samples[i - 1],
+            _ => latest,
+        };
+        let (mut previous, mut i) = (self.start as f64, 1);
+        let mut quarter = |k: u32| {
+            let boundary = total as f64 * f64::from(k) / 4.0;
+            while i + 1 < count && (point(i).1 as f64) < boundary {
+                i += 1;
+            }
+            let ((t0, u0), (t1, u1)) = (point(i - 1), point(i));
+            let at = if u1 > u0 {
+                let part = ((boundary - u0 as f64) / (u1 - u0) as f64).min(1.0);
+                t0 as f64 + (t1 - t0) as f64 * part
+            } else {
+                t1 as f64
+            };
+            let quarter = Duration::from_nanos((at - previous).max(0.0) as u64);
+            previous = previous.max(at);
+            quarter
+        };
+        let quarters = [quarter(1), quarter(2), quarter(3), quarter(4)];
+        Some(UnitPace { quarters })
     }
 
     /// The statistics as of now, with the timed checks' total scaled to all
@@ -596,6 +695,8 @@ pub(crate) struct SpanInner {
 
 /// A span times its first this-many checks, then every this-many-th.
 const TIMED_CHECKS: usize = 16;
+/// Timed reports a span keeps for [`UnitPace`].
+const PACE_SAMPLES: usize = 32;
 
 impl SpanInner {
     fn now(&self) -> Duration {
@@ -691,9 +792,11 @@ impl SpanInner {
         if state.closed {
             return;
         }
-        if let Some(now) = now
-            && now >= state.last_report
-        {
+        let timed = match now {
+            Some(now) if now >= state.last_report => Some(now),
+            _ => None,
+        };
+        if let Some(now) = timed {
             let at = Some(SourceSite::from_location(at));
             let duration = now - state.last_report;
             state.close_report_gap(now, duration, at);
@@ -702,6 +805,14 @@ impl SpanInner {
         }
         state.stats.overflowed |= add(&mut state.stats.reports, 1);
         state.stats.overflowed |= add(&mut state.stats.units, completed);
+        match (timed, now) {
+            (Some(now), _) => {
+                let units = state.stats.units;
+                state.sample(now, units);
+            }
+            (None, Some(now)) => state.late(now, completed),
+            (None, None) => {}
+        }
         // Borrow the guard's fields apart.
         let state = &mut *state;
         if let Some(i) = site(
@@ -739,6 +850,7 @@ impl SpanInner {
                     0
                 });
                 state.close_report_gap(end, duration, None);
+                state.stats.unit_pace = state.unit_pace();
             }
             state.take_stats()
         };
@@ -1231,6 +1343,21 @@ impl Trace {
                     out.write_str(",\"to\":")?;
                     optional_site(out, gap.to)?;
                     out.write_char('}')?;
+                }
+                None => out.write_str("null")?,
+            }
+            out.write_str(",\"unit_pace\":")?;
+            match &span.stats.unit_pace {
+                Some(pace) => {
+                    let q = &pace.quarters;
+                    write!(
+                        out,
+                        "[\"{}\",\"{}\",\"{}\",\"{}\"]",
+                        q[0].as_nanos(),
+                        q[1].as_nanos(),
+                        q[2].as_nanos(),
+                        q[3].as_nanos()
+                    )?;
                 }
                 None => out.write_str("null")?,
             }

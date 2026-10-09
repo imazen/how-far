@@ -884,3 +884,153 @@ fn callback_cadence_ignores_idle_time_between_operations() {
     let kinds = kinds(&profiler.snapshot(), &Options::default());
     assert!(!kinds.contains(&Kind::CallbackInterval), "{kinds:?}");
 }
+
+fn rows(profiler: &Profiler, clock: &ManualClock, gaps: impl Fn(u64) -> u64) -> DiagnosticPulse {
+    let measured = DiagnosticPulse::new(
+        PulseTree::new(Phase::new("rows", Total::Exact(40)), Unstoppable),
+        profiler,
+    );
+    let mut t = 0;
+    for row in 0..40 {
+        t += gaps(row);
+        clock.set(t);
+        measured.step(1).unwrap();
+    }
+    measured
+}
+
+#[test]
+fn a_phase_whose_units_slow_down_partway_gets_uneven_pace_advice() {
+    let clock = ManualClock::default();
+    let profiler = Profiler::new(clock.clone(), 4);
+    profiler.set_report_timing(true);
+    // 20 rows at 1 ms each, then 20 at 10 ms each: more reports than the
+    // span keeps samples of.
+    let measured = rows(&profiler, &clock, |row| if row < 20 { 1 } else { 10 });
+    let (trace, kinds) = diagnose(measured, &profiler);
+    assert!(kinds.contains(&Kind::UnevenPace));
+    // The phase's span starts at its first step, at 1 ms.
+    assert_eq!(trace.spans[0].start, ms(1));
+    let pace = trace.spans[0].stats.unit_pace.as_ref().unwrap();
+    assert_eq!(pace.quarters, [ms(9), ms(10), ms(100), ms(100)]);
+    let mut json = String::new();
+    trace.write_json(&mut json).unwrap();
+    assert!(json.contains("\"unit_pace\":[\"9000000\",\"10000000\",\"100000000\",\"100000000\"]"));
+}
+
+#[test]
+fn an_evenly_paced_phase_gets_no_uneven_pace_advice() {
+    let clock = ManualClock::default();
+    let profiler = Profiler::new(clock.clone(), 4);
+    profiler.set_report_timing(true);
+    let measured = rows(&profiler, &clock, |_| 1);
+    let (trace, kinds) = diagnose(measured, &profiler);
+    assert!(!kinds.contains(&Kind::UnevenPace));
+    let pace = trace.spans[0].stats.unit_pace.as_ref().unwrap();
+    assert_eq!(pace.quarters, [ms(9), ms(10), ms(10), ms(10)]);
+
+    // A bare span without report timing samples nothing.
+    let clock = ManualClock::default();
+    let profiler = Profiler::new(clock.clone(), 4);
+    let span = profiler.span(None, "rows", SpanKind::Work);
+    let work = span.instrument(ProgressWithStop::new(Unstoppable, NoReport));
+    for row in 0..40 {
+        clock.set(if row < 20 { row } else { 20 + 10 * (row - 20) });
+        work.step(1).unwrap();
+    }
+    span.finish(Outcome::Succeeded);
+    let trace = profiler.snapshot();
+    assert!(find(&trace, Kind::UnevenPace).is_none());
+    assert!(trace.spans[0].stats.unit_pace.is_none());
+}
+
+#[test]
+fn a_fastest_quarter_under_the_clock_resolution_still_flags_uneven_pace() {
+    let clock = ManualClock::default();
+    let profiler = Profiler::new(clock.clone(), 2);
+    profiler.set_report_timing(true);
+    let span = profiler.span(None, "coarse clock", SpanKind::Work);
+    let report = span.instrument(NoReport);
+    // Two reports in the first clock reading, then one every 10 ms.
+    for t in [0, 0, 10, 20, 30, 40, 50, 60] {
+        clock.set(t);
+        report.advance(1);
+    }
+    span.finish(Outcome::Succeeded);
+    let trace = profiler.snapshot();
+    assert_eq!(
+        trace.spans[0].stats.unit_pace.as_ref().unwrap().quarters[0],
+        ms(0)
+    );
+    let mut options = Options::default();
+    options.minimum_stage_wall = ms(50);
+    assert!(kinds(&trace, &options).contains(&Kind::UnevenPace));
+}
+
+/// A clock whose reading, on the thread named `late`, returns only after the
+/// other thread has recorded its reports.
+struct LateClock {
+    clock: ManualClock,
+    read: std::sync::Barrier,
+    resume: std::sync::Barrier,
+}
+impl Clock for LateClock {
+    fn now(&self) -> Duration {
+        let now = self.clock.now();
+        if std::thread::current().name() == Some("late") {
+            self.read.wait();
+            self.resume.wait();
+        }
+        now
+    }
+}
+
+#[test]
+fn a_report_that_reads_the_clock_before_others_but_records_after_still_counts() {
+    let clock = ManualClock::default();
+    let late = Arc::new(LateClock {
+        clock: clock.clone(),
+        read: std::sync::Barrier::new(2),
+        resume: std::sync::Barrier::new(2),
+    });
+    let shared = Arc::clone(&late);
+    struct Shared(Arc<LateClock>);
+    impl Clock for Shared {
+        fn now(&self) -> Duration {
+            self.0.now()
+        }
+    }
+    let profiler = Profiler::new(Shared(shared), 2);
+    profiler.set_report_timing(true);
+    let span = profiler.span(None, "workers", SpanKind::Work);
+    let report = span.instrument(NoReport);
+    // 100 units read the clock at 10 ms but record after eight single units
+    // at 20-90 ms: a worker preempted between reading the clock and locking.
+    clock.set(10);
+    std::thread::scope(|scope| {
+        let report = &report;
+        let worker = std::thread::Builder::new()
+            .name("late".into())
+            .spawn_scoped(scope, move || report.advance(100))
+            .unwrap();
+        late.read.wait();
+        for t in (20..=90).step_by(10) {
+            clock.set(t);
+            report.advance(1);
+        }
+        late.resume.wait();
+        worker.join().unwrap();
+    });
+    clock.set(100);
+    span.finish(Outcome::Succeeded);
+    let trace = profiler.snapshot();
+    assert_eq!(trace.spans[0].stats.units, 108);
+    // The 100 units count from 10 ms on, so the first three quarters are
+    // fast and the last is slow, as in the same reports recorded in order.
+    let q = trace.spans[0].stats.unit_pace.as_ref().unwrap().quarters;
+    assert!(q[0] < ms(6) && q[1] < ms(6) && q[2] < ms(6), "{q:?}");
+    assert!(q[3] > ms(70), "{q:?}");
+    let mut options = Options::default();
+    options.minimum_stage_wall = ms(50);
+    assert!(kinds(&trace, &options).contains(&Kind::UnevenPace));
+}
