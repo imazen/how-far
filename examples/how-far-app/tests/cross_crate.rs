@@ -1,6 +1,7 @@
 //! An application drives a pipeline library that calls a codec library, both
 //! in other crates, through one `&dyn Pulse`.
 
+use how_far::ResultExt;
 use how_far_along::{AsStopReason, NoPulse, Outcome, Status};
 mod common;
 use common::{all, find, images, tree, tree_stopping_when};
@@ -12,12 +13,20 @@ fn tracking_never_changes_the_output() {
     let batch = images(3);
     let tracked = tree("batch", how_far_along::Unstoppable);
     assert_eq!(
-        process(&batch, &tracked).unwrap(),
+        process(&batch, &tracked).finish_phase(tracked).unwrap(),
         process(&batch, &NoPulse).unwrap()
     );
+    let tracked = tracked_tree();
+    let observer = tracked.observer();
     assert_eq!(
-        process_each(&batch, &tracked_tree()).unwrap(),
+        process_each(&batch, &tracked)
+            .finish_phase(tracked)
+            .unwrap(),
         process_each(&batch, &NoPulse).unwrap()
+    );
+    assert_eq!(
+        observer.snapshot().status,
+        Status::Finished(Outcome::Succeeded)
     );
 }
 
@@ -31,11 +40,7 @@ fn one_tree_records_both_libraries_phases() {
     let tracked = tree("batch", how_far_along::Unstoppable);
     let observer = tracked.observer();
     let result = process(&batch, &tracked);
-    tracked
-        .finish(Outcome::from_result(&result, |error| {
-            error.as_stop_reason().is_some()
-        }))
-        .unwrap();
+    let _result = result.finish_phase(tracked);
     let root = observer.snapshot();
     assert_eq!(root.status, Status::Finished(Outcome::Succeeded));
     assert_eq!(root.fraction(), Some(1.0));
@@ -68,7 +73,7 @@ fn a_library_runs_the_codec_inside_each_of_its_stages() {
     assert!(result.is_ok());
     // Neither library finished the root; the application does.
     assert_eq!(observer.snapshot().status, Status::Running);
-    tracked.finish(Outcome::Succeeded).unwrap();
+    let _result = result.finish_phase(tracked);
     let root = observer.snapshot();
     assert_eq!(root.fraction(), Some(1.0));
     assert_eq!(
@@ -94,11 +99,7 @@ fn cancelling_inside_the_codec_records_each_level_and_returns_the_stop() {
             error: codec::Error::Stopped(how_far_along::StopReason::Cancelled)
         })
     );
-    tracked
-        .finish(Outcome::from_result(&result, |error| {
-            error.as_stop_reason().is_some()
-        }))
-        .unwrap();
+    let _result = result.finish_phase(tracked);
     let root = observer.snapshot();
     assert_eq!(root.status, Status::Finished(Outcome::Cancelled));
     let image = |i: usize| format!("image {i}");
@@ -131,11 +132,7 @@ fn corrupt_input_is_recorded_as_a_failure_not_a_cancellation() {
             error: codec::Error::Corrupt { row: 7 }
         })
     );
-    tracked
-        .finish(Outcome::from_result(&result, |error| {
-            error.as_stop_reason().is_some()
-        }))
-        .unwrap();
+    let _result = result.finish_phase(tracked);
     let root = observer.snapshot();
     assert_eq!(root.status, Status::Finished(Outcome::Failed));
     assert_eq!(

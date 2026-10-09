@@ -10,7 +10,7 @@ description = "Applications driving how-far libraries across crates, threads, po
 how-far.workspace = true
 how-far-example-codec = { path = "../how-far-codec" }
 how-far-example-pipeline = { path = "../how-far-pipeline" }
-how-far-along = { workspace = true, features = ["std", "json"] }
+how-far-along = { workspace = true, features = ["std", "json", "callback", "smooth"] }
 how-far-really.workspace = true
 almost-enough.workspace = true
 

@@ -1,4 +1,4 @@
-//! An application adds tracking and diagnostics without changing either library.
+#![doc = include_str!("../../../docs/how-far-integration.md")]
 use how_far::{Total, prelude::*};
 use how_far_along::{Phase, PulseTree};
 use how_far_really::{

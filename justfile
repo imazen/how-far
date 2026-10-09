@@ -47,3 +47,8 @@ stage-metadata:
 # Exercise the display smoother without std or other default features.
 check-smooth: check
     cargo test -p how-far-along --no-default-features --features smooth --color never
+
+# Execute the integration guide, caller example, and cross-crate contracts.
+check-integration:
+    cargo test -p how-far-example-app --all-features --color never
+    cargo run -p how-far-example-app --example integration --color never
