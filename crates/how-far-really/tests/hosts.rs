@@ -7,7 +7,10 @@ use how_far_along::{
 };
 use how_far_really::profile::{Profiler, SpanKind, StdClock};
 use rayon::prelude::*;
-use std::{num::NonZeroUsize, sync::Arc};
+use std::{
+    num::NonZeroUsize,
+    sync::{Arc, Mutex},
+};
 
 fn search_block(block: usize) -> u64 {
     let mut value = block as u64;
@@ -52,6 +55,9 @@ fn codec_pipeline_counts_accepted_blocks_across_two_parallel_waves_and_a_serial_
                 cancel_after_three.cancel();
             }
         });
+        // Serialize dispatch in this fixture: try_poll deliberately drops
+        // concurrent attempts, which could otherwise all miss the threshold.
+        let polling = Mutex::new(());
         // Strided preparation includes the short final row batch.
         let input = [0_u8; 17];
         for chunk in input.chunks(16) {
@@ -77,7 +83,11 @@ fn codec_pipeline_counts_accepted_blocks_across_two_parallel_waves_and_a_serial_
                         }
                         let result = search_block(block);
                         work.step(1)?;
-                        poller.try_poll();
+                        let _polling = polling.lock().unwrap();
+                        assert!(poller.try_poll());
+                        // This worker must observe a stop its callback requested,
+                        // even if every other worker has already completed.
+                        work.check()?;
                         Ok::<_, how_far_along::StopReason>(result)
                     })();
                     span.finish(if result.is_ok() {

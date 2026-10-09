@@ -6,7 +6,7 @@
 # impls omitted; re-export duplicates annotated `[also: path]`.
 # DO NOT EDIT BY HAND — commit regenerated changes with the code.
 #
-# files: how-far-really.txt 178 lines (supported surface) | how-far-really.features.txt 0 added (features: none) | how-far-really.internal.txt 11 lines (11 hidden + 0 excluded-feature)
+# files: how-far-really.txt 181 lines (supported surface) | how-far-really.features.txt 0 added (features: stage-suggestions) | how-far-really.internal.txt 11 lines (11 hidden + 0 excluded-feature)
 
 ## summary
 #
@@ -14,18 +14,18 @@
 #   pub types (struct/enum/trait/alias)        21
 #   pub consts/statics                          1
 #   inherent methods                           28
-#   struct fields                              74
-#   enum variants                              25
+#   struct fields                              76
+#   enum variants                              26
 #   trait roster entries (type × trait)        77
 #   auto-trait-complete types                  16
 #   auto-trait exceptions                       4
 #
 # per-module pub lines:
 #   (root)                            4
-#   diagnostics                      47
-#   profile                         101
+#   diagnostics                      48
+#   profile                         103
 
-## items (152 lines)
+## items (155 lines)
 
 pub mod how_far_really
 pub mod diagnostics
@@ -45,6 +45,7 @@ pub diagnostics::Kind::ReportGap
 pub diagnostics::Kind::StageWeights
 pub diagnostics::Kind::StopGap
 pub diagnostics::Kind::StopOutcomeMismatch
+pub diagnostics::Kind::SuggestedStages
 pub diagnostics::Kind::UnevenPace
 pub diagnostics::Kind::UnobservedCancellation
 #[non_exhaustive] pub enum diagnostics::Problem
@@ -109,12 +110,14 @@ pub profile::ReportGap::max_check_gap: core::time::Duration
 pub profile::ReportGap::start: core::time::Duration
 pub profile::ReportGap::to: core::option::Option<profile::SourceSite>
 #[non_exhaustive] pub struct profile::SiteStats
+pub profile::SiteStats::active: core::option::Option<(core::time::Duration, core::time::Duration)>
 pub profile::SiteStats::checks: u64
 pub profile::SiteStats::column: u32
 pub profile::SiteStats::file: &'static str
 pub profile::SiteStats::line: u32
 pub profile::SiteStats::max_gap_before_check: core::time::Duration
 pub profile::SiteStats::reports: u64
+pub profile::SiteStats::time: core::time::Duration
 pub profile::SiteStats::units: u64
 #[non_exhaustive] pub struct profile::SourceSite
 pub profile::SourceSite::column: u32

@@ -159,6 +159,26 @@ pub struct SiteStats {
     pub units: u64,
     /// Longest interval that ended at a check at this site.
     pub max_gap_before_check: Duration,
+    /// Wall time of the intervals that ended at this site: from the span's
+    /// previous check or timed report, or its entry, to this site's call.
+    /// Reports count only with [`Profiler::set_report_timing`] on.
+    pub time: Duration,
+    /// When this site's first and last timed calls were made, in the clock's
+    /// epoch; `None` if none were timed.
+    pub active: Option<(Duration, Duration)>,
+}
+
+impl SiteStats {
+    /// A timed call at `at`, ending an interval of `interval` since the
+    /// span's previous checkpoint (both in nanoseconds).
+    fn hit(&mut self, at: u64, interval: u64) {
+        let at = Duration::from_nanos(at);
+        self.time += Duration::from_nanos(interval);
+        self.active = Some(match self.active {
+            Some((first, last)) => (first.min(at), last.max(at)),
+            None => (at, at),
+        });
+    }
 }
 
 /// The longest interval between reports in one span, recorded only when
@@ -735,6 +755,7 @@ impl SpanInner {
             state.max_check_gap_start = state.last_check;
         }
         state.window.check(start);
+        let interval = start.saturating_sub(state.last_check.max(state.last_report));
         state.last_check = state.last_check.max(start);
         if let Some(end) = end {
             let elapsed = match nanos(end).checked_sub(start) {
@@ -765,6 +786,7 @@ impl SpanInner {
             ) {
                 let site = &mut state.stats.sites[i];
                 site.checks = site.checks.saturating_add(1);
+                site.hit(start, interval);
                 state.site_gaps[i] = state.site_gaps[i].max(gap);
             }
         }
@@ -796,7 +818,9 @@ impl SpanInner {
             Some(now) if now >= state.last_report => Some(now),
             _ => None,
         };
+        let mut interval = 0;
         if let Some(now) = timed {
+            interval = now.saturating_sub(state.last_check.max(state.last_report));
             let at = Some(SourceSite::from_location(at));
             let duration = now - state.last_report;
             state.close_report_gap(now, duration, at);
@@ -824,6 +848,9 @@ impl SpanInner {
             let site = &mut state.stats.sites[i];
             site.reports = site.reports.saturating_add(1);
             site.units = site.units.saturating_add(completed);
+            if let Some(now) = timed {
+                site.hit(now, interval);
+            }
         }
     }
 
@@ -1056,6 +1083,8 @@ fn find_site(
                 reports: 0,
                 units: 0,
                 max_gap_before_check: Duration::ZERO,
+                time: Duration::ZERO,
+                active: None,
             });
             gaps.push(0);
             sites.len() - 1
@@ -1368,14 +1397,21 @@ impl Trace {
                 quote(out, site.file)?;
                 write!(
                     out,
-                    ",\"line\":{},\"column\":{},\"checks\":{},\"reports\":{},\"units\":\"{}\",\"max_gap_before_check\":\"{}\"}}",
+                    ",\"line\":{},\"column\":{},\"checks\":{},\"reports\":{},\"units\":\"{}\",\"max_gap_before_check\":\"{}\",\"time\":\"{}\",\"active\":",
                     site.line,
                     site.column,
                     site.checks,
                     site.reports,
                     site.units,
-                    site.max_gap_before_check.as_nanos()
+                    site.max_gap_before_check.as_nanos(),
+                    site.time.as_nanos()
                 )?;
+                match site.active {
+                    Some((first, last)) => {
+                        write!(out, "[\"{}\",\"{}\"]}}", first.as_nanos(), last.as_nanos())?
+                    }
+                    None => out.write_str("null}")?,
+                }
             }
             out.write_str("]}")?;
         }

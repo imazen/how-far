@@ -7,6 +7,11 @@ license.workspace = true
 repository.workspace = true
 description = "Opt-in diagnostics and checkpoint tuning for how-far"
 
+[features]
+# `Kind::SuggestedStages`: stages a phase could declare, from when each source
+# location was active. Off by default; it adds analysis code to the crate.
+stage-suggestions = []
+
 [dependencies]
 how-far.workspace = true
 how-far-along = { workspace = true, features = ["std", "json"] }
