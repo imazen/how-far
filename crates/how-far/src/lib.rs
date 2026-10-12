@@ -27,7 +27,7 @@ pub use pulse::{
     SharedPulse, Total,
 };
 pub use report::{NoReport, ProgressWithStop, Report};
-pub use stages::Stages;
+pub use stages::{Stage, Stages};
 pub use stop_only::StopOnly;
 pub use try_stages::{RunError, TryStages};
 

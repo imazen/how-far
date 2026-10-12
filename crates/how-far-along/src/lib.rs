@@ -21,7 +21,7 @@ pub use how_far::WithStop;
 use how_far::ChildPulse;
 pub use how_far::{
     AsStopReason, Child, Complete, Execution, NoPulse, Outcome, Paced, PhaseSpec, Phases,
-    PlanError, ProgressExt, Pulse, Report, ResultExt, SharedPulse, Stages, Stop, StopOnly,
+    PlanError, ProgressExt, Pulse, Report, ResultExt, SharedPulse, Stage, Stages, Stop, StopOnly,
     StopReason, Total, Unstoppable, prelude,
 };
 

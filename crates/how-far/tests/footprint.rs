@@ -20,6 +20,8 @@ const _: () = {
     assert!(size_of::<&dyn Stop>() == 2 * WORD);
     assert!(size_of::<&dyn Report>() == 2 * WORD);
     assert!(size_of::<Child<'static>>() == 2 * WORD);
+    // A child owner plus its exclusive borrow of the sequential plan.
+    assert!(size_of::<how_far::Stage<'static, 'static>>() == 3 * WORD);
     assert!(size_of::<Box<dyn Pulse>>() == 2 * WORD);
     // `ProgressExt::live` keeps the two words: `None` is the null pointer.
     assert!(size_of::<Option<&dyn Pulse>>() == 2 * WORD);
