@@ -29,6 +29,10 @@ None.
 - `std` by default, with `no_std + alloc` tracking through the application's critical-section provider; no deprecated `enough/std` forwarding (`be8cd93`, `bd7ab30`).
 - A standalone application quickstart and links to the public guide (`13d787d7`, `38ebee79`).
 
+#### Fixed
+
+- Weighted parents expose known progress while unknown children retain their reserved share in `unresolved_fraction`; snapshots, summaries and smoothing agree (`94cb4796`).
+
 ## how-far-really
 
 ### [0.1.0] - 2026-10-12
