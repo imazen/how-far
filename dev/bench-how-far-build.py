@@ -108,7 +108,9 @@ def perf_instructions(argv, cwd):
 
 def wall_seconds(argv, cwd):
     start = time.perf_counter()
-    subprocess.run(argv, cwd=cwd, capture_output=True, check=True)
+    result = subprocess.run(argv, cwd=cwd, capture_output=True, text=True)
+    if result.returncode:
+        raise RuntimeError(result.stderr)
     return time.perf_counter() - start
 
 
@@ -180,11 +182,20 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
     try:
         crates = ["how_far", *PROBES, *(f"observation/{name}" for name in ALONG)]
         samples = {(p, c): [] for p in PROFILES for c in crates}
+        # Replays must not overwrite the dependency metadata used by another
+        # profile or feature set. Keep Cargo's artifacts as immutable inputs.
+        for profile, crate in samples:
+            out = tmp / "replay" / profile / crate.replace("/", "-")
+            out.mkdir(parents=True)
+            argv = commands[profile, crate]
+            argv[argv.index("--out-dir") + 1] = str(out)
         for _ in range(args.runs):
             for key in samples:
                 measure = wall_seconds if args.wall_time else perf_instructions
                 samples[key].append(measure(commands[key], tmp))
     except RuntimeError:
+        if args.wall_time:
+            raise
         print("perf cannot count instructions here (see kernel.perf_event_paranoid); skipping them")
         raise SystemExit(0)
     scale = 1 if args.wall_time else 1e6
