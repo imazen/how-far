@@ -173,8 +173,9 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
         for symbol, body in ir_functions(name, "release"):
             if "PulseTree" not in symbol:
                 continue
-            for method, suffix in [("check", "4Stop5check"), ("may_stop", "4Stop8may_stop")]:
-                if suffix not in symbol:
+            for method in ["check", "may_stop"]:
+                # Rust 1.88 uses legacy mangling; newer compilers use v0.
+                if not re.search(rf"Stop.*{len(method)}{method}", symbol):
                     continue
                 # Compare instructions, not feature-dependent symbol hashes,
                 # attribute-group indices, comments or metadata identifiers.
@@ -182,6 +183,7 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
                          if line.strip() and not line.lstrip().startswith((";", "#dbg"))]
                 instructions = "\n".join(lines)
                 instructions = re.sub(r", ![\w.]+ !\d+", "", instructions)
+                instructions = re.sub(r"!\d+", "!META", instructions)
                 instructions = re.sub(r"#\d+", "#ATTR", instructions)
                 assert "br i1" not in instructions, f"ordinary {method} gained a conditional branch"
                 assert method not in found, f"ambiguous PulseTree::{method} symbol"
