@@ -6,27 +6,27 @@
 # impls omitted; re-export duplicates annotated `[also: path]`.
 # DO NOT EDIT BY HAND — commit regenerated changes with the code.
 #
-# files: how-far-along.txt 132 lines (supported surface) | how-far-along.features.txt 19 added (features: callback,smooth,std) | how-far-along.internal.txt 7 lines (7 hidden + 0 excluded-feature)
+# files: how-far-along.txt 146 lines (supported surface) | how-far-along.features.txt 5 added (features: smooth,std) | how-far-along.internal.txt 7 lines (7 hidden + 0 excluded-feature)
 
 ## summary
 #
 #   pub modules                                 3
-#   pub types (struct/enum/trait/alias)        15
+#   pub types (struct/enum/trait/alias)        17
 #   pub consts/statics                          3
-#   inherent methods                           46
+#   inherent methods                           56
 #   struct fields                              17
 #   enum variants                               3
 #   re-exports                                 23
-#   trait roster entries (type × trait)        48
-#   auto-trait-complete types                   8
-#   auto-trait exceptions                       6
+#   trait roster entries (type × trait)        53
+#   auto-trait-complete types                   9
+#   auto-trait exceptions                       7
 #
 # per-module pub lines:
-#   (root)                           85
+#   (root)                           97
 #   ext                               6
 #   poll                             19
 
-## items (110 lines)
+## items (122 lines)
 
 pub mod how_far_along
 pub use AsStopReason
@@ -83,6 +83,18 @@ pub struct poll::SubscriptionId(_)
 pub Status::Finished(how_far::pulse::Outcome)
 pub Status::NotStarted
 pub Status::Running
+pub struct Checkpoint<'a>
+pub fn Checkpoint<'_>::phase_id(&self) -> NodeId
+pub fn Checkpoint<'_>::phase_name(&self) -> &str
+pub fn Checkpoint<'_>::snapshot(&self) -> Snapshot
+pub fn Checkpoint<'_>::summary(&self) -> Summary
+pub fn Checkpoint<'_>::try_snapshot(&self) -> core::option::Option<Snapshot>
+pub fn Checkpoint<'_>::try_summary(&self) -> core::option::Option<Summary>
+pub struct FnPulse
+pub fn FnPulse::finish(self, how_far::pulse::Outcome) -> core::result::Result<(), how_far::pulse::PlanError>
+pub fn FnPulse::new(&str, impl core::ops::function::Fn(&Checkpoint<'_>) -> core::result::Result<(), enough::reason::StopReason> + core::marker::Send + core::marker::Sync + 'static) -> Self
+pub fn FnPulse::observer(&self) -> Observer
+pub fn FnPulse::with_phase(Phase, impl core::ops::function::Fn(&Checkpoint<'_>) -> core::result::Result<(), enough::reason::StopReason> + core::marker::Send + core::marker::Sync + 'static) -> Self
 pub struct NodeId(_)
 pub const NodeId::ROOT: Self
 pub const fn NodeId::get(self) -> usize
@@ -139,8 +151,9 @@ pub Summary::fraction: core::option::Option<f64>
 pub Summary::status: Status
 pub Summary::unresolved_fraction: f64
 
-## trait impls (15 types)
+## trait impls (16 types)
 
+FnPulse: Debug, enough::Stop, how_far::completion::Complete, how_far::pulse::Pulse, how_far::report::Report
 NodeId: Clone, Copy, Debug, Display, Eq, Hash, Ord, PartialEq, PartialOrd
 Observer: Clone, Debug
 Phase: Drop, how_far::completion::Complete
@@ -159,7 +172,8 @@ poll::SubscriptionId: Clone, Copy, Debug, Eq, Hash, PartialEq
 
 ## auto traits
 
-8 types implement all of: Freeze, RefUnwindSafe, Send, Sync, Unpin, UnwindSafe
+9 types implement all of: Freeze, RefUnwindSafe, Send, Sync, Unpin, UnwindSafe
+FnPulse: !RefUnwindSafe !UnwindSafe
 PulseTree: !RefUnwindSafe !UnwindSafe
 ext::Batch<R>: !Freeze !RefUnwindSafe !Unpin !UnwindSafe
 poll::LocalPoller<'a>: !RefUnwindSafe !Send !Sync !UnwindSafe

@@ -24,7 +24,7 @@ is re-exported. Libraries expose `&dyn Pulse` and their own error types, never
 tracker owners or diagnostic records unless observation is their purpose.
 
 `how-far-along` owns tracking: `Phase`, `PulseTree`, `Reporter`, `Observer`,
-`NodeId`, `Status`, `Summary`, `Snapshot`, polling and optional callbacks. Its
+`NodeId`, `Status`, `Summary`, `Snapshot`, polling and checkpoint callbacks. Its
 root re-exports the author-facing core types, not `ChildPulse`, `RunError` or
 `TryStages`, which implementors import from core. It never re-exports
 diagnostics. `how-far-really` owns opt-in profiling and analysis in two public
@@ -121,7 +121,7 @@ names or allocating; `try_summary` skips a busy metadata read; snapshots
 allocate their records. Fractions can regress after a total revision and stay
 unknown while a required denominator is unknown or overflowed.
 
-The optional `callback` feature adds `FnPulse`. Each check offers a lazy view
+`FnPulse` is always available. Each check offers a lazy view
 (phase, name, summary and snapshot accessors) that walks nothing unless asked.
 Callbacks can overlap; the first stop reason wins. No internal lock is held
 during user code, and callbacks must not recursively check the same pulse.
@@ -181,12 +181,11 @@ without a serializer dependency.
 The tracker's only default feature is `std`, which selects its mutex backend.
 It does not enable `enough/std`: both configurations already use `enough/alloc`.
 Without defaults the tracker needs alloc, native atomics and a critical-section
-provider. `callback` compiles `FnPulse` and its dispatcher policy. Ordinary
+provider. `FnPulse` and its dispatcher policy are always available. Ordinary
 `PulseTree` owners, children and shared views keep their cancellation-only
-policy; enabling the feature adds no callback slot or dispatch branch to them.
-The build-cost guard compares their root checkpoint code with the feature off
-and on. The feature stays opt-in for compile cost. The stable `smooth` feature owns its state separately from
-the tree and stays opt-in to preserve the default compile-cost budget.
+policy, with no callback slot or dispatch branch. The build-cost guard requires
+branch-free root checkpoint code. The stable `smooth` feature owns its state
+separately from the tree and stays opt-in to preserve the default compile-cost budget.
 
 Diagnostics is a separate std-only crate. Its opt-in
 `experimental-stage-suggestions` feature groups timestamps already collected

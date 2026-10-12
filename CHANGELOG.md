@@ -4,6 +4,8 @@
 
 ### QUEUED BREAKING CHANGES
 
+- Before first publication: remove the tracker `callback` feature name; `FnPulse` and `Checkpoint` are always available. Remove `callback` from downstream feature lists.
+
 - Before first publication: remove core `adapters` / `checked` and tracker `adapters` / `json` feature names; their APIs are unconditional. Rename diagnostics `stage-suggestions` to `experimental-stage-suggestions`. Remove the old names from downstream manifests (`be613b9f`).
 
 ### Fixed
@@ -27,7 +29,7 @@
 ### Added
 
 - `how-far` (Rust 1.88, `no_std + alloc`, depends only on `enough`): the `&dyn Pulse` interface libraries accept for cancellation, completed units and weighted nested phases. `Stages`/`Phases` return the library's own `Result`; `complete_with` keeps an early `?` inside the handoff; `share()` gives owned work the full interface without completion rights; `StopOnly` turns a cancellation token into a pulse. `WithStop` and `TryStages` are always available.
-- `how-far-along` (Rust 1.88): tracking trees, allocation-free summaries, snapshots, pollers, JSON schema 2, and optional checkpoint callbacks (`FnPulse`).
+- `how-far-along` (Rust 1.88): tracking trees, allocation-free summaries, snapshots, pollers, JSON schema 2, and checkpoint callbacks (`FnPulse`).
 - `how-far-along`: optional `smooth` feature with `ProgressSmoother::display_fraction`, which smooths a polled tree's fraction between reports for displays, at each running stage's own pace, bounded by one latest change and half the remaining work ahead when advancing the estimate; a previous displayed high-water mark can remain above a smaller new bound; finished stages and revised totals show the snapshot's record.
 - `how-far-really` (Rust 1.88, `std`): opt-in profiling and diagnostics of checkpoint cadence, callbacks, protocol misuse and stage weights.
 - `how-far-really`: `Kind::UnevenPace` flags a task whose slowest quarter of reported units took at least `Options::uneven_pace_ratio` (default 4) times as long as its fastest, with advice to split the phase into stages or report a unit that tracks cost; spans record `Stats::unit_pace` (`UnitPace`, four quarter durations) whenever report timing is on, from at most 32 sampled reports.

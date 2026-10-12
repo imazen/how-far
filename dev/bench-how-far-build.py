@@ -31,7 +31,7 @@ parser.add_argument("--feature-audit", action="store_true",
 parser.add_argument("--wall-time", action="store_true",
                     help="measure rustc elapsed seconds instead of perf instructions")
 parser.add_argument("--ir-budget", type=int, default=120, help="IR lines per call site")
-parser.add_argument("--along-budget", type=int, nargs=2, default=[22_000, 35_000],
+parser.add_argument("--along-budget", type=int, nargs=2, default=[25_000, 35_000],
                     metavar=("TRACKER", "DIAGNOSTICS"), help="tracker and diagnostics IR lines")
 args = parser.parse_args()
 root = Path(__file__).resolve().parent.parent
@@ -92,7 +92,6 @@ PROFILES = {"check": ["check"], "debug": ["build"], "release": ["build", "--rele
 ALONG = {
     "std": ("how-far-along", []),
     "diagnostics": ("how-far-really", []),
-    "callback": ("how-far-along", ["callback"]),
 }
 if args.feature_audit:
     ALONG.update({
@@ -177,23 +176,18 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
                 # Rust 1.88 uses legacy mangling; newer compilers use v0.
                 if not re.search(rf"Stop.*{len(method)}{method}", symbol):
                     continue
-                # Compare instructions, not feature-dependent symbol hashes,
-                # attribute-group indices, comments or metadata identifiers.
+                # Inspect instructions without comments or debug records.
                 lines = [line.strip() for line in body.splitlines()[1:]
                          if line.strip() and not line.lstrip().startswith((";", "#dbg"))]
                 instructions = "\n".join(lines)
-                instructions = re.sub(r", ![\w.]+ !\d+", "", instructions)
-                instructions = re.sub(r"!\d+", "!META", instructions)
-                instructions = re.sub(r"#\d+", "#ATTR", instructions)
                 assert "br i1" not in instructions, f"ordinary {method} gained a conditional branch"
                 assert method not in found, f"ambiguous PulseTree::{method} symbol"
                 found[method] = instructions
         assert set(found) == {"check", "may_stop"}, "missing ordinary checkpoint symbols"
         return found
 
-    assert checkpoint_ir("observation/std") == checkpoint_ir("observation/callback"), \
-        "callback changes ordinary PulseTree checkpoint code"
-    print("PulseTree check/may_stop: identical branch-free release IR with callback off/on")
+    checkpoint_ir("observation/std")
+    print("PulseTree check/may_stop: branch-free release IR with unconditional callbacks")
 
     per_site = (ir_lines(f"stages{LARGE}") - ir_lines(f"stages{SMALL}")) / (LARGE - SMALL)
     print(f"how-far IR per Stages::run call site: {per_site:.0f} lines "

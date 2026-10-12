@@ -126,7 +126,7 @@ progress=["zenpng/progress","dep:how-far-along"]
 zenpng={{path="../progress",default-features=false}}
 enough="0.4.5"
 whereat="0.1.4"
-how-far-along={{path="{root}/crates/how-far-along",features=["callback"],optional=true}}
+how-far-along={{path="{root}/crates/how-far-along",optional=true}}
 imgref="1.12"
 rgb="0.8"
 [patch.crates-io]

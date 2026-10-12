@@ -1,6 +1,5 @@
 use how_far::{RunError, TryStages};
 use how_far_along::{prelude::*, *};
-#[cfg(feature = "callback")]
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier};
 
@@ -152,7 +151,6 @@ fn concurrent_reports_are_exact_after_join_and_overflow_saturates() {
         Snapshot::counter_max()
     );
 }
-#[cfg(feature = "callback")]
 #[test]
 fn callbacks_only_run_at_checkpoints_and_final_paced_cancellation_propagates() {
     let calls = Arc::new(AtomicUsize::new(0));
@@ -177,7 +175,6 @@ fn callbacks_only_run_at_checkpoints_and_final_paced_cancellation_propagates() {
     p.finish(Outcome::Cancelled).unwrap();
     assert_eq!(calls.load(Ordering::Relaxed), 2);
 }
-#[cfg(feature = "callback")]
 #[test]
 fn callback_reentry_for_observation_and_total_changes_holds_no_internal_lock() {
     let holder = Arc::new(std::sync::Mutex::new(None::<SharedPulse>));
@@ -199,7 +196,6 @@ fn callback_reentry_for_observation_and_total_changes_holds_no_internal_lock() {
     holder.lock().unwrap().take();
     p.finish(Outcome::Succeeded).unwrap();
 }
-#[cfg(feature = "callback")]
 #[test]
 fn callback_drop_and_abandonment_never_call_user_code() {
     let p = FnPulse::new("job", |_| panic!("no checkpoint should run"));
@@ -262,7 +258,6 @@ fn added_stop_policies_survive_splitting_and_owned_nesting() {
     assert_eq!(shared.check(), Err(StopReason::Cancelled));
     child.finish(Outcome::Cancelled).unwrap();
 }
-#[cfg(feature = "callback")]
 #[test]
 fn concurrent_callbacks_latch_one_reason_and_return_it_to_every_worker() {
     let barrier = Arc::new(Barrier::new(4));
@@ -307,7 +302,6 @@ fn intentionally_skipped_work_is_distinct_from_work_prevented_by_failure() {
     tree.finish(Outcome::Succeeded).unwrap();
 }
 
-#[cfg(feature = "callback")]
 #[test]
 fn nested_and_shared_callbacks_keep_the_checking_phase_and_root_observation() {
     let calls = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -342,7 +336,7 @@ fn nested_and_shared_callbacks_keep_the_checking_phase_and_root_observation() {
     outer.check().unwrap();
     inner.check().unwrap();
     shared.check().unwrap();
-    // An ordinary tree in this callback-enabled build never dispatches it.
+    // An ordinary tree alongside callback-backed pulses never dispatches it.
     let plain = tree(Total::Unknown);
     assert!(!plain.may_stop());
     plain.share().unwrap().check().unwrap();

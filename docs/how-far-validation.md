@@ -31,7 +31,7 @@ What is tested, where, and what the tests do not cover. See
 | Metadata replacement concurrent with snapshots, under Miri with strict provenance | `crates/how-far-along/src/sync.rs`, `crates/how-far-along/tests/phases.rs` |
 | A real Wasm timer boundary, JSPI suspension and cancellation, progress posted from a worker | `dev/how-far-wasm/check.mjs` |
 | A UI thread observing and cancelling a `wasm-bindgen-rayon` pool in Chromium and WebKit | `dev/how-far-browser/browser.spec.mjs` |
-| The how-far crates on Rust 1.88; `no_std` builds for Cortex-M (including optional callbacks with native-width counters) and wasm32; every feature combination; i686, aarch64 Linux and Windows, Intel macOS | CI |
+| The how-far crates on Rust 1.88; `no_std` builds for Cortex-M (including callbacks with native-width counters) and wasm32; every feature combination; i686, aarch64 Linux and Windows, Intel macOS | CI |
 
 No test suite proves every consumer's behavior. There is no built-in ETA
 model or executor; exported observations support them without claiming that
@@ -46,14 +46,16 @@ and feature-gated grouping are covered by `crates/how-far-really/tests/diagnosti
 
 ## Build and runtime cost
 
+[The callback default change](../benchmarks/callback-default-2026-10-12.md) records
+the measured cost and assembly verification for unconditional callbacks.
+
 `dev/bench-how-far-build.py`, run in CI on Rust 1.88, permits no core Cargo
 features, only the `enough` production dependency,
 and no build script. It caps `Stages::run` at 120 unoptimized LLVM IR lines per
-call site, tracker code at 22,000 and the `how-far-really` diagnostics crate at
+call site, tracker code at 25,000 and the `how-far-really` diagnostics crate at
 35,000 with default features. Optional smoothing and stage suggestions are
-outside those default-feature caps. The guard also requires identical,
-branch-free optimized `PulseTree::check` and `may_stop` bodies with `callback`
-disabled and enabled. It also counts rustc's instructions, which unlike wall time do not
+outside those default-feature caps. The guard also requires branch-free optimized `PulseTree::check` and
+`may_stop` bodies with callbacks always available. It also counts rustc's instructions, which unlike wall time do not
 depend on machine load. `dev/how-far-checkpoint-cost` counts, with perf, what
 each observer costs in each library scenario around the same
 `#[inline(never)]` defilter.

@@ -14,4 +14,4 @@
 - Fixed in callback isolation: Cargo feature unification added an optional
   dispatcher slot and checkpoint branch to every ordinary tree. Private policy
   types now separate ordinary cancellation from callback dispatch; the build-cost
-  guard compares ordinary checkpoint code with callback disabled and enabled.
+  guard requires branch-free ordinary checkpoint code with callbacks available.

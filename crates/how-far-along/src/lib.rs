@@ -7,11 +7,9 @@ extern crate alloc;
 
 #[macro_use]
 mod pulse;
-#[cfg(feature = "callback")]
 mod callback;
 pub mod ext;
 mod json;
-#[cfg(feature = "callback")]
 pub use callback::{Checkpoint, FnPulse};
 pub mod poll;
 #[cfg(feature = "smooth")]
