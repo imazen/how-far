@@ -289,10 +289,10 @@ fn reservations_survive_moves_and_cannot_alias_another_identical_plan() {
         errors: Mutex::new(Vec::new()),
     };
     let (first, [first_key]) = Stages::define(&pulse, [parts()[0]]);
-    let (mut second, [second_key]) = Stages::define(&pulse, [parts()[0]]);
     // Drop the original plan while retaining its key. Allocator address reuse
     // must not make this stale key valid for a later plan.
     drop(first);
+    let (mut second, [second_key]) = Stages::define(&pulse, [parts()[0]]);
     second.begin(first_key).complete_as(Outcome::Succeeded);
     second.begin(second_key).complete_as(Outcome::Succeeded);
     second.complete_as(Outcome::Succeeded);
