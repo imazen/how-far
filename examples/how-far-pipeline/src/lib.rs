@@ -60,38 +60,44 @@ fn codec_error(image: usize) -> impl Fn(codec::Error) -> Error {
     move |error| Error::Codec { image, error }
 }
 
-/// Decode, transform, and optionally sharpen. `complete_with` hands the whole
-/// body's result to the plan, so an early `?` cannot bypass the handoff.
+/// Decode, transform, and optionally sharpen, using different data and result
+/// types at each stage. Hand over each result before `?` so errors resolve the
+/// pending stages even when the function returns early.
 pub fn convert(
     input: &[u8],
     pulse: &dyn Pulse,
     mode: Mode,
     sharpen: bool,
 ) -> Result<Vec<u8>, Error> {
-    Stages::new(
+    let (mut stages, [decode_key, transform_key, sharpen_key]) = Stages::define(
         pulse,
-        &[
+        [
             PhaseSpec::new("decode", 4, Total::Unknown),
             PhaseSpec::new("transform", 4, Total::Exact(input.len() as u64)),
             PhaseSpec::new("sharpen", 1, Total::Exact(1)),
         ],
-    )
-    .complete_with(|stages| {
-        let mut pixels = stages.run(|p| codec::decode(input, p, mode).map_err(codec_error(0)))?;
-        stages.run(|p| {
-            p.check()?;
-            let mut paced = p.paced(64);
-            for pixel in &mut pixels {
-                *pixel ^= 0xff;
-                paced.step(1)?;
-            }
-            Ok::<_, Error>(paced.finish()?)
-        })?;
-        if sharpen {
-            stages.run(|p| Ok::<_, Error>(p.step(1)?))?;
-        }
-        Ok(pixels)
-    })
+    );
+    let decode_phase = stages.begin(decode_key);
+    let mut pixels = codec::decode(input, &decode_phase, mode)
+        .map_err(codec_error(0))
+        .finish_phase(decode_phase)?;
+    let transform_phase = stages.begin(transform_key);
+    invert(&mut pixels, &transform_phase).finish_phase(transform_phase)?;
+    if sharpen {
+        let sharpen_phase = stages.begin(sharpen_key);
+        sharpen_phase.step(1).finish_phase(sharpen_phase)?;
+    }
+    stages.complete(Ok(pixels))
+}
+
+fn invert(pixels: &mut [u8], pulse: &dyn Pulse) -> Result<(), Error> {
+    pulse.check()?;
+    let mut paced = pulse.paced(64);
+    for pixel in pixels {
+        *pixel ^= 0xff;
+        paced.step(1)?;
+    }
+    Ok(paced.finish()?)
 }
 
 /// Keep the caller's stage and cancellation, adding a library-local stop source.
@@ -117,14 +123,17 @@ pub fn process_each(images: &[codec::Image], pulse: &dyn Pulse) -> Result<Vec<Ve
         .zip(images)
         .map(|(name, image)| PhaseSpec::new(name, image.pixels.len().max(1) as u64, Total::Unknown))
         .collect();
-    Stages::new(pulse, &parts).complete_with(|stages| {
-        let mut encoded = Vec::with_capacity(images.len());
-        for (index, image) in images.iter().enumerate() {
-            encoded
-                .push(stages.run(|stage| codec::encode(image, stage).map_err(codec_error(index)))?);
-        }
-        Ok(encoded)
-    })
+    let mut stages = Stages::new(pulse, &parts);
+    let mut encoded = Vec::with_capacity(images.len());
+    for (index, image) in images.iter().enumerate() {
+        let stage = stages.begin_next();
+        encoded.push(
+            codec::encode(image, &stage)
+                .map_err(codec_error(index))
+                .finish_phase(stage)?,
+        );
+    }
+    stages.complete(Ok(encoded))
 }
 
 /// Validate, encode every image in parallel (a fork-join child per image, on
@@ -134,54 +143,58 @@ pub fn process_each(images: &[codec::Image], pulse: &dyn Pulse) -> Result<Vec<Ve
 pub fn process(images: &[codec::Image], pulse: &dyn Pulse) -> Result<Vec<Vec<u8>>, Error> {
     use rayon::prelude::*;
     let pixels: u64 = images.iter().map(|image| image.pixels.len() as u64).sum();
-    Stages::new(
+    let (mut stages, [validate_key, encode_key, pack_key]) = Stages::define(
         pulse,
-        &[
+        [
             PhaseSpec::new("validate", 1, Total::Exact(images.len() as u64)).units("images"),
             PhaseSpec::new("encode", 20, Total::Unknown),
             PhaseSpec::new("pack", 1, Total::Exact(pixels)).units("bytes"),
         ],
-    )
-    .complete_with(|stages| {
-        stages.run(|stage| {
-            for _ in images {
-                stage.step(1)?;
-            }
-            Ok::<_, Error>(())
-        })?;
-        let encoded = stages.run(|stage| {
-            let names: Vec<_> = (0..images.len())
-                .map(|i| alloc::format!("image {i}"))
-                .collect();
-            let parts: Vec<_> = names
-                .iter()
-                .zip(images)
-                .map(|(name, image)| {
-                    PhaseSpec::new(name, image.pixels.len().max(1) as u64, Total::Unknown)
-                })
-                .collect();
-            stage
-                .plan(Execution::ForkJoin, &parts)
-                .into_par_iter()
-                .zip(images.par_iter())
-                .enumerate()
-                .map(|(index, (child, image))| {
-                    child.complete_with(|child| {
-                        codec::encode(image, child).map_err(codec_error(index))
-                    })
-                })
-                .collect::<Vec<_>>()
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()
-        })?;
-        stages.run(|stage| {
-            for bytes in &encoded {
-                stage.step(bytes.len() as u64)?;
-            }
-            Ok::<_, Error>(())
-        })?;
-        Ok(encoded)
-    })
+    );
+    let validate_phase = stages.begin(validate_key);
+    validate(images, &validate_phase).finish_phase(validate_phase)?;
+    let encode_phase = stages.begin(encode_key);
+    let names: Vec<_> = (0..images.len())
+        .map(|i| alloc::format!("image {i}"))
+        .collect();
+    let parts: Vec<_> = names
+        .iter()
+        .zip(images)
+        .map(|(name, image)| PhaseSpec::new(name, image.pixels.len().max(1) as u64, Total::Unknown))
+        .collect();
+    let pulse: &dyn Pulse = &encode_phase;
+    let result = pulse
+        .plan(Execution::ForkJoin, &parts)
+        .into_par_iter()
+        .zip(images.par_iter())
+        .enumerate()
+        .map(|(index, (child, image))| {
+            codec::encode(image, &child)
+                .map_err(codec_error(index))
+                .finish_phase(child)
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>();
+    let encoded = result.finish_phase(encode_phase)?;
+    let pack_phase = stages.begin(pack_key);
+    pack(&encoded, &pack_phase).finish_phase(pack_phase)?;
+    stages.complete(Ok(encoded))
+}
+
+#[cfg(feature = "std")]
+fn validate(images: &[codec::Image], pulse: &dyn Pulse) -> Result<(), Error> {
+    for _ in images {
+        pulse.step(1)?;
+    }
+    Ok(())
+}
+#[cfg(feature = "std")]
+fn pack(encoded: &[Vec<u8>], pulse: &dyn Pulse) -> Result<(), Error> {
+    for bytes in encoded {
+        pulse.step(bytes.len() as u64)?;
+    }
+    Ok(())
 }
 
 /// Intentionally incorrect implementations, for the diagnostic demonstration.

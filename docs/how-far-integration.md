@@ -11,11 +11,11 @@ The how-far crates are not published yet. Pin them to the same revision:
 
 ```toml
 [dependencies]
-how-far = { git = "https://github.com/imazen/how-far", rev = "4c69b48148f67d2e75839d614831d695683581d3" }
+how-far = { git = "https://github.com/imazen/how-far", rev = "699c683baad933de6f7b66d6780fba10c40caa79" }
 
 [dev-dependencies]
-how-far-along = { git = "https://github.com/imazen/how-far", rev = "4c69b48148f67d2e75839d614831d695683581d3", features = ["smooth"] }
-how-far-really = { git = "https://github.com/imazen/how-far", rev = "4c69b48148f67d2e75839d614831d695683581d3" }
+how-far-along = { git = "https://github.com/imazen/how-far", rev = "699c683baad933de6f7b66d6780fba10c40caa79", features = ["smooth"] }
+how-far-really = { git = "https://github.com/imazen/how-far", rev = "699c683baad933de6f7b66d6780fba10c40caa79" }
 ```
 
 For a library, the tracker and diagnostic tools normally belong in
@@ -30,35 +30,65 @@ different `Stop` and `StopReason` identities.
 
 ## Library code: close what you own
 
-Use `Stages::complete_with` around a sequence containing `?`. Each `run` owns
-and completes its child; the enclosing helper completes unused children from
-the body's result. It leaves the borrowed input pulse for its caller to finish.
+Bind stage reservations to variables and call ordinary functions with their handles. Hand each
+result to `.finish_phase(stage)` before `?`: a failure immediately marks the
+remaining sequence `NotRun`. On success, `stages.complete(Ok(value))` resolves
+unused optional stages. The borrowed input pulse remains its caller's to finish.
 
 ```rust
 use how_far::{prelude::*, PhaseSpec, Stages, StopReason, Total};
 
 fn copy(input: &[u8], pulse: &dyn Pulse) -> Result<Vec<u8>, StopReason> {
-    Stages::new(pulse, &[
+    let (mut stages, [copy_key, finalize_key]) = Stages::define(pulse, [
         PhaseSpec::new("copy", 4, Total::Exact(input.len() as u64)).units("bytes"),
         PhaseSpec::new("finalize", 1, Total::Exact(1)),
-    ]).complete_with(|stages| {
-        let output = stages.run(|stage| {
-            stage.check()?;
-            let mut output = Vec::with_capacity(input.len());
-            let mut paced = stage.paced(64);
-            for &byte in input {
-                output.push(byte);
-                paced.step(1)?;
-            }
-            paced.finish()?;
-            Ok::<_, StopReason>(output)
-        })?;
-        stages.run(|stage| stage.step(1))?;
-        Ok(output)
-    })
+    ]);
+    let copy_phase = stages.begin(copy_key);
+    let output = copy_bytes(input, &copy_phase).finish_phase(copy_phase)?;
+    let finalize_phase = stages.begin(finalize_key);
+    finalize_phase.step(1).finish_phase(finalize_phase)?;
+    stages.complete(Ok(output))
+}
+
+fn copy_bytes(input: &[u8], pulse: &dyn Pulse) -> Result<Vec<u8>, StopReason> {
+    pulse.check()?;
+    let mut output = Vec::with_capacity(input.len());
+    let mut paced = pulse.paced(64);
+    for &byte in input {
+        output.push(byte);
+        paced.step(1)?;
+    }
+    paced.finish()?;
+    Ok(output)
 }
 assert_eq!(copy(&[1, 2], &how_far::NoPulse), Ok(vec![1, 2]));
 ```
+
+Different stages may borrow different inputs and return different types. Write
+those calls in order; iterate only when applying an operation to repeated data.
+`Stages::define` returns one reservation per definition. `begin(key)` checks
+that it belongs to this plan and is next in declaration order. It does not
+search labels or schedule work. Use `skip()` to discharge an optional stage
+before beginning a later one. A wrong-plan, reused, or out-of-order key records
+`StageMismatch`, preserves cancellation, and leaves the next declaration pending.
+Repeated labels are fine; keys distinguish their positions. Dropping a key
+leaves its stage pending for the plan to resolve.
+
+For a runtime-sized list of repeated work, construct `Stages::new(pulse, &specs)`
+and call `begin_next()` inside the loop. The operation and result handoff are
+identical; the loop supplies the ordering instead of named variables.
+
+The same handle can span an async call: use
+`operation(&stage).await.finish_phase(stage)?`. Dropping a suspended operation
+abandons its active stage; Drop cannot infer a cancellation result.
+
+An active `Stage` borrows the plan until completion. Its `share()` supports
+owned workers, but they must join before the handoff. A dropped active stage
+records `Abandoned` and leaves the remaining sequence `NotRun`. Neither Drop
+nor a bare `?` can classify an error that never reaches a result handoff.
+For substantial inline fallible work, use a normal helper function so its
+result can be handed over. `run` and `complete_with` remain optional closure
+helpers, including when a closure is more convenient for a short local body.
 
 Keep the library's error type. Implement `From<StopReason>` to use `?`, and
 `AsStopReason` to classify cancellation, delegating through nested errors.
@@ -70,6 +100,81 @@ Pacing trades checkpoint frequency for overhead. `Paced::finish` checks the
 last partial batch; Drop only reports it. Report work after doing it. Use
 `Phases` for independently selected attempts, such as a fallback after a
 failed decoder, rather than treating the failed attempt as a failed sequence.
+
+## Fork–join with different operations
+
+An active stage can fork into branches with different inputs, operations and
+result types. `fork` starts the branch handles but schedules nothing. The
+closures below belong to scoped threading; the operation calls and result
+handoffs are the same as sequential code.
+
+```rust
+use how_far::{prelude::*, PhaseSpec, Stages, StopReason, Total};
+use how_far_along::{Phase, PulseTree, Status, Unstoppable};
+
+fn analyze_pixels(pixels: &[u8], pulse: &dyn Pulse) -> Result<u64, StopReason> {
+    pulse.check()?;
+    let sum = pixels.iter().map(|&p| u64::from(p)).sum();
+    pulse.step(pixels.len() as u64)?;
+    Ok(sum)
+}
+
+fn read_metadata(header: &str, pulse: &dyn Pulse) -> Result<String, StopReason> {
+    pulse.check()?;
+    let metadata = header.trim().to_owned();
+    pulse.step(1)?;
+    Ok(metadata)
+}
+
+fn analyze(pixels: &[u8], header: &str, pulse: &dyn Pulse)
+    -> Result<(u64, String), StopReason>
+{
+    let (mut stages, [analysis]) = Stages::define(pulse, [
+        PhaseSpec::new("analysis", 1, Total::Unknown),
+    ]);
+    let analysis = stages.begin(analysis);
+    let [pixels_stage, metadata_stage] = analysis.fork([
+        PhaseSpec::new("pixels", 3, Total::Exact(pixels.len() as u64)),
+        PhaseSpec::new("metadata", 1, Total::Exact(1)),
+    ]);
+    let (pixels_result, metadata_result) = std::thread::scope(|scope| {
+        let pixels_task = scope.spawn(move ||
+            analyze_pixels(pixels, &pixels_stage).finish_phase(pixels_stage));
+        let metadata_task = scope.spawn(move ||
+            read_metadata(header, &metadata_stage).finish_phase(metadata_stage));
+        (pixels_task.join().unwrap(), metadata_task.join().unwrap())
+    });
+    // Both branches have joined and received their results before any `?`.
+    let result = match (pixels_result, metadata_result) {
+        (Ok(sum), Ok(metadata)) => Ok((sum, metadata)),
+        (Err(error), _) | (_, Err(error)) => Err(error),
+    };
+    let output = result.finish_phase(analysis)?;
+    stages.complete(Ok(output))
+}
+
+let tree = PulseTree::new(Phase::new("job", Total::Unknown), Unstoppable);
+let observer = tree.observer();
+let result = analyze(&[2, 3], " profile ", &tree).finish_phase(tree);
+assert_eq!(result, Ok((5, String::from("profile"))));
+assert_eq!(observer.snapshot().status, Status::Finished(how_far::Outcome::Succeeded));
+```
+
+Every forked handle is active. Dropping one without handing over its result
+records `Abandoned`; an unused sequential reservation instead stays pending.
+A failed branch does not automatically cancel siblings. Join every branch,
+combine their results using the application's error policy, then finish the
+enclosing stage. Its failure resolves later sequential stages as `NotRun`.
+For different error types, map each into the library's error type before the
+combined handoff.
+
+Branches can declare their own `Stages::define` sequences using `&branch` as
+their pulse. Rayon and borrowed async futures use the same handles; an async
+join must await all branches before the enclosing handoff. Dropping a
+short-circuiting join abandons any unfinished branch. Detached tasks instead
+need `share()` and explicit joining before their original owners complete.
+The array helper covers fixed branch sets; runtime-sized batches use the
+lower-level `Pulse::split` or best-effort `(&dyn Pulse)::plan` interface.
 
 ## Caller code: preserve the result and finish the root
 
@@ -194,6 +299,6 @@ encoder emits existing magetypes deprecation warnings with the resolved
 is a separate dated experiment, not a current integration PR.
 
 The main ergonomic cost left for ordinary libraries is explicit result handoff
-and error classification. The prelude supplies the extension traits, and
-`complete_with` keeps early returns inside the handoff. Tests should still catch
+and error classification. The prelude supplies the extension traits; the direct
+pattern records each operation's result before `?`. Tests should still catch
 forgotten completion: neither `?` nor Drop can infer a returned result.

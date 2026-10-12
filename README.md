@@ -13,20 +13,23 @@ it.
 use how_far::{prelude::*, PhaseSpec, Stages, StopReason, Total};
 
 fn encode(rows: &[u8], pulse: &dyn Pulse) -> Result<(), StopReason> {
-    let mut stages = Stages::new(pulse, &[
+    let (mut stages, [encode, _metadata]) = Stages::define(pulse, [
         PhaseSpec::new("encode", 1, Total::Exact(rows.len() as u64)).units("rows"),
         PhaseSpec::new("optional metadata", 1, Total::Exact(1)),
     ]);
-    let result = stages.run(|stage| {
-        stage.check()?;
-        let mut pace = stage.paced(64);
-        for _row in rows {
-            // Complete the row before reporting it.
-            pace.step(1)?;
-        }
-        pace.finish()
-    });
-    result.finish_phase(stages)
+    let encode = stages.begin(encode);
+    encode_rows(rows, &encode).finish_phase(encode)?;
+    stages.complete(Ok(()))
+}
+
+fn encode_rows(rows: &[u8], pulse: &dyn Pulse) -> Result<(), StopReason> {
+    pulse.check()?;
+    let mut pace = pulse.paced(64);
+    for _row in rows {
+        // Encode the row, then report completed work.
+        pace.step(1)?;
+    }
+    pace.finish()
 }
 ```
 

@@ -156,27 +156,28 @@ fn copy(input: &[u8], pulse: &dyn Pulse) -> Result<Vec<u8>, Error> {
 /// them with a coder that owns its stop policy.
 pub fn encode(image: &Image, pulse: &dyn Pulse) -> Result<Vec<u8>, Error> {
     let tiles = image.tiles() as u64;
-    Stages::new(
+    let (mut stages, [analyze_key, transform_key, entropy_key]) = Stages::define(
         pulse,
-        &[
+        [
             PhaseSpec::new("analyze", 1, Total::Exact(image.height as u64)).units("rows"),
             PhaseSpec::new("transform", 6, Total::Exact(tiles))
                 .units("tiles")
                 .execution(transform_execution()),
             PhaseSpec::new("entropy", 3, Total::Exact(tiles)).units("tiles"),
         ],
-    )
-    .complete_with(|stages| {
-        stages.run(|stage| analyze(image, stage))?;
-        let transformed = stages.run(|stage| transform(image, stage))?;
-        stages.run(|stage| match stage.share() {
-            // A coder context outlives the call that builds it, so it owns
-            // its view, as codecs built with `with_stop(impl Stop + 'static)` do.
-            Ok(owned) => EntropyCoder::new(owned).code(&transformed),
-            // A pulse that only works borrowed still drives this call's coder.
-            Err(_) => EntropyCoder::new(stage).code(&transformed),
-        })
-    })
+    );
+    let analyze_phase = stages.begin(analyze_key);
+    analyze(image, &analyze_phase).finish_phase(analyze_phase)?;
+    let transform_phase = stages.begin(transform_key);
+    let transformed = transform(image, &transform_phase).finish_phase(transform_phase)?;
+    let entropy_phase = stages.begin(entropy_key);
+    let result = match entropy_phase.share() {
+        // A coder context owns its view when the caller permits owned sharing.
+        Ok(owned) => EntropyCoder::new(owned).code(&transformed),
+        Err(_) => EntropyCoder::new(&entropy_phase).code(&transformed),
+    };
+    let encoded = result.finish_phase(entropy_phase)?;
+    stages.complete(Ok(encoded))
 }
 
 fn analyze(image: &Image, stage: &dyn Pulse) -> Result<(), Error> {
@@ -388,8 +389,8 @@ pub fn encode_quadtree(image: &Image, pulse: &dyn Pulse) -> Result<u64, Error> {
         // `plan` returns one child per part.
         let (left, right) = (halves.next().unwrap(), halves.next().unwrap());
         let (a, b) = rayon::join(
-            || left.complete_with(|left| node(left_tiles, image, left)),
-            || right.complete_with(|right| node(right_tiles, image, right)),
+            || node(left_tiles, image, &left).finish_phase(left),
+            || node(right_tiles, image, &right).finish_phase(right),
         );
         Ok(a?.wrapping_add(b?))
     }

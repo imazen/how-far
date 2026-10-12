@@ -24,11 +24,11 @@ sequential work. Both convert `StopReason` into their own errors for `?`, and
 implement `how_far::AsStopReason` for classification. The outer error delegates
 classification to its codec error without losing it.
 
-The pipeline runs its body through `stages.complete_with(|stages| ...)`, which
-hands the body's result to the plan even after an early `?`; the codec, with one
-expression, calls `result.finish_phase(attempts)`. Every nested runner closes only the children it
-owns. The application finally closes the root. Neither Rust's `?` nor `map` nor
-Drop automatically communicates a plain Result to a progress owner.
+The pipeline binds reservations from `Stages::define` to variables, then uses
+`stages.begin(key)`, ordinary operation calls, and
+`.finish_phase(stage)?` before error propagation. A stage error resolves the
+remaining sequence immediately; final `stages.complete(Ok(value))` discharges
+optional work on success. Closure helpers remain available for convenience.
 
 | Execution | Codec attempts | Remaining pipeline stages | Root/result |
 | --- | --- | --- | --- |

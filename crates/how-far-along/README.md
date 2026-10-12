@@ -8,11 +8,12 @@ use how_far_along::{prelude::*, Phase, PhaseSpec, PulseTree, Stages, StopReason,
 let tree = PulseTree::new(Phase::new("job", Total::Unknown), Unstoppable);
 let observer = tree.observer();
 let result = {
-    let mut stages = Stages::new(&tree, &[
+    let (mut stages, [work_key, _optional_key]) = Stages::define(&tree, [
         PhaseSpec::new("work", 1, Total::Exact(2)),
         PhaseSpec::new("optional", 1, Total::Exact(1)),
     ]);
-    let result = stages.run(|phase| phase.step(2));
+    let phase = stages.begin(work_key);
+    let result = phase.step(2).finish_phase(phase);
     result.finish_phase(stages)
 };
 result.finish_phase(tree)?;

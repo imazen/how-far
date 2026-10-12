@@ -10,20 +10,23 @@ required.
 use how_far::{prelude::*, PhaseSpec, Stages, StopReason, Total};
 
 fn encode(rows: &[u8], pulse: &dyn Pulse) -> Result<(), StopReason> {
-    let mut stages = Stages::new(pulse, &[
+    let (mut stages, [encode, _metadata]) = Stages::define(pulse, [
         PhaseSpec::new("encode", 1, Total::Exact(rows.len() as u64)).units("rows"),
         PhaseSpec::new("optional metadata", 1, Total::Exact(1)),
     ]);
-    let result = stages.run(|stage| {
-        stage.check()?;
-        let mut pace = stage.paced(64);
-        for _row in rows {
-            // Complete the row before reporting it.
-            pace.step(1)?;
-        }
-        pace.finish()
-    });
-    result.finish_phase(stages)
+    let encode = stages.begin(encode);
+    encode_rows(rows, &encode).finish_phase(encode)?;
+    stages.complete(Ok(()))
+}
+
+fn encode_rows(rows: &[u8], pulse: &dyn Pulse) -> Result<(), StopReason> {
+    pulse.check()?;
+    let mut pace = pulse.paced(64);
+    for _row in rows {
+        // Encode the row, then report completed work.
+        pace.step(1)?;
+    }
+    pace.finish()
 }
 encode(&[1, 2, 3], &how_far::NoPulse)?;
 # Ok::<(), StopReason>(())
@@ -34,7 +37,23 @@ An application calls such a library with `&how_far::NoPulse`, a tracker from
 `&StopOnly::new(token)` (or `StopOnly::borrowed(&token)`): every nested phase
 checks that token, and progress costs nothing.
 
-`Stages` runs a sequence. An escaping error makes its remaining stages `NotRun`.
+`Stages::define` returns the plan and an array of `StageKey` reservations.
+Bind them to variables; `stages.begin(key)` gives the next active handle.
+Pass it to an ordinary function and hand the result back with
+`.finish_phase(stage)?`. Keys are specific to one plan and checked in order;
+a mismatch records `StageMismatch` and runs untracked without consuming the
+next declaration. Labels are only for display. A failed or cancelled handoff
+makes remaining stages `NotRun`, even when `?` returns immediately. Call
+`stages.complete(Ok(value))` on success to mark unused optional stages `Skipped`.
+
+Within an active stage, `stage.fork([specs...])` starts independent branch
+handles. Each takes its own data and uses the same result handoff. Schedule
+and join them with your threading or async library, then hand the combined
+result to the enclosing stage. Branch failure does not stop siblings by itself.
+For runtime-sized repeated work, `Stages::new` plus `begin_next()` uses the
+same handles without named reservations. See the
+[fork–join example](../../docs/how-far-integration.md#forkjoin-with-different-operations).
+
 `Phases` runs independently selected phases, allowing a library to catch a failed
 attempt and run a fallback. Neither helper introduces a planning error into the
 work's result. Plans rejected by an observer retain cancellation/checkpoint
@@ -44,9 +63,14 @@ wrapper retain evidence of rejected observations.
 `Complete::complete(result)` and `ResultExt::finish_phase(owner)` are explicit
 result handoffs, returning the original value/error unchanged. Untouched phases
 become `Skipped` on success or `NotRun` on failure. Drop without a result records
-`Abandoned`. For a multi-step body, `owner.complete_with(|owner| ...)` hands
-over whatever the body returns, so an early `?` cannot bypass the handoff. A borrowed pulse belongs to its caller: complete your child
-owners and plan helpers, never the borrowed input.
+`Abandoned`. An unfinished active stage also marks the remaining sequence
+`NotRun`. Put work that can fail inside the operation whose result is handed
+over: a bare `?` before that handoff cannot classify its error for the tracker.
+A borrowed pulse belongs to its caller: complete your child owners and plan,
+never the borrowed input.
+
+`Stages::run` and `Complete::complete_with` remain optional closure conveniences.
+The latter hands over a multi-step body's result, including early `?` returns.
 
 For a custom error, implement `From<StopReason>` for `?` and `enough::AsStopReason`
 (re-exported here) for cancellation classification; the latter only inspects
