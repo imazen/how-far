@@ -3,7 +3,7 @@
 Removing the `callback` feature makes `FnPulse` and `Checkpoint` available in
 both std and no_std configurations. Their private dispatcher policy remains
 separate from ordinary `PulseTree` cancellation. No runtime implementation or
-public signature changes in this follow-up to `554bb95f`.
+public signature changes in `4c69b481`, a follow-up to `554bb95f`.
 
 The earlier [compile-time comparison](callback-isolation-2026-10-12.md)
 measured callback support at an additional 6 ms for check, 9 ms for debug and
