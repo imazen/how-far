@@ -20,12 +20,15 @@ import shutil
 import statistics
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--runs", type=int, default=3, help="perf samples per measurement")
 parser.add_argument("--feature-audit", action="store_true",
                     help="also measure optional APIs separately; default budgets still apply")
+parser.add_argument("--wall-time", action="store_true",
+                    help="measure rustc elapsed seconds instead of perf instructions")
 parser.add_argument("--ir-budget", type=int, default=120, help="IR lines per call site")
 parser.add_argument("--along-budget", type=int, nargs=2, default=[22_000, 35_000],
                     metavar=("TRACKER", "DIAGNOSTICS"), help="tracker and diagnostics IR lines")
@@ -103,6 +106,12 @@ def perf_instructions(argv, cwd):
     return int(next(l for l in out.stderr.splitlines() if "instructions" in l).split(",")[0])
 
 
+def wall_seconds(argv, cwd):
+    start = time.perf_counter()
+    subprocess.run(argv, cwd=cwd, capture_output=True, check=True)
+    return time.perf_counter() - start
+
+
 with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
     tmp = Path(tmp)
     for name, source in PROBES.items():
@@ -165,7 +174,7 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
             lines = ir_lines(f"observation/{name}", only_how_far=False)
             print(f"{ALONG[name][0]} own IR, {name}: {lines} lines (audit, not a default-budget gate)")
 
-    if shutil.which("perf") is None:
+    if not args.wall_time and shutil.which("perf") is None:
         print("perf not found; skipping instruction counts")
         raise SystemExit(0)
     try:
@@ -173,12 +182,16 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
         samples = {(p, c): [] for p in PROFILES for c in crates}
         for _ in range(args.runs):
             for key in samples:
-                samples[key].append(perf_instructions(commands[key], tmp))
+                measure = wall_seconds if args.wall_time else perf_instructions
+                samples[key].append(measure(commands[key], tmp))
     except RuntimeError:
         print("perf cannot count instructions here (see kernel.perf_event_paranoid); skipping them")
         raise SystemExit(0)
-    m = {key: statistics.median(values) / 1e6 for key, values in samples.items()}
-    print(f"{'rustc instructions (millions)':44} {'check':>7} {'debug':>7} {'release':>7}")
+    scale = 1 if args.wall_time else 1e6
+    precision = 3 if args.wall_time else 1
+    m = {key: statistics.median(values) / scale for key, values in samples.items()}
+    units = "rustc elapsed seconds (warm files)" if args.wall_time else "rustc instructions (millions)"
+    print(f"{units:44} {'check':>7} {'debug':>7} {'release':>7}")
     rows = {
         "empty no_std crate": lambda p: m[p, "empty"],
         "how-far": lambda p: m[p, "how_far"],
@@ -190,8 +203,8 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
             (m[p, f"stages{LARGE}"] - m[p, f"stages{SMALL}"]) / (LARGE - SMALL),
     }
     for label, value in rows.items():
-        print(f"{label:44} " + " ".join(f"{value(p):7.1f}" for p in PROFILES))
+        print(f"{label:44} " + " ".join(f"{value(p):7.{precision}f}" for p in PROFILES))
     if args.feature_audit:
         for name in list(ALONG)[2:]:
             print(f"{name:44} " + " ".join(
-                f"{m[p, 'observation/' + name]:7.1f}" for p in PROFILES))
+                f"{m[p, 'observation/' + name]:7.{precision}f}" for p in PROFILES))

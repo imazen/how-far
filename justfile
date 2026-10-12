@@ -25,7 +25,7 @@ build-cost:
 
 # Compare optional APIs with the default crates without relaxing default budgets.
 feature-cost:
-    python3 dev/bench-how-far-build.py --runs 3 --feature-audit
+    python3 dev/bench-how-far-build.py --runs 5 --feature-audit --wall-time
 
 # Local library gates; also exercise individual no-default-feature packages.
 check:
