@@ -15,7 +15,7 @@ const el = (tag, cls, text) => {
 const percent = fraction => fraction === null ? 'Unknown' : `${(fraction * 100).toFixed(1)}%`;
 const frames = () => traces[scenario].frames;
 const events = () => traces[scenario].events;
-function treeNode(node) {
+function treeNode(node, displayed) {
   let view = nodes.get(node.id);
   if (!view) {
     const box = el('div', 'node');
@@ -35,13 +35,17 @@ function treeNode(node) {
     nodes.set(node.id, view);
   }
   const status = node.outcome || node.status;
+  const estimated = displayed !== undefined;
+  const fraction = estimated ? displayed : node.fraction;
+  view.box.dataset.execution = node.execution;
+  view.box.dataset.estimated = String(estimated);
   view.box.dataset.status = status;
   view.state.textContent = status;
-  view.fill.style.width = `${Math.max(0, Math.min(1, node.fraction ?? 0)) * 100}%`;
+  view.fill.style.width = `${Math.max(0, Math.min(1, fraction ?? 0)) * 100}%`;
   view.unknown.style.width = `${node.unresolved_fraction * 100}%`;
   view.unknown.title = `${percent(node.unresolved_fraction)} of the budget has an unknown total`;
   const total = node.total?.count;
-  view.details.textContent = `${percent(node.fraction)} · ${Number(node.completed).toLocaleString()}${total ? ' / ' + Number(total).toLocaleString() : ''} units${node.unresolved_fraction ? ' · ' + percent(node.unresolved_fraction) + ' unresolved' : ''}${node.completion_inferred ? ' · inferred' : ''}`;
+  view.details.textContent = `${percent(fraction)} · ${Number(node.completed).toLocaleString()}${total ? ' / ' + Number(total).toLocaleString() : ''} units${estimated ? ' · display estimate' : ''}${node.unresolved_fraction ? ' · ' + percent(node.unresolved_fraction) + ' unresolved' : ''}${node.completion_inferred ? ' · inferred' : ''}${node.execution === 'ForkJoin' ? ' · parallel branches' : ''}`;
   for (const child of node.children) {
     const box = treeNode(child);
     if (box.parentElement !== view.children) view.children.append(box);
@@ -58,7 +62,7 @@ function render() {
     $('event-code').textContent = event.code;
     lastEvent = frame.event;
   }
-  const root = treeNode(frame.snapshot.root);
+  const root = treeNode(frame.snapshot.root, scenario === 'smooth' ? frame.display_fraction : undefined);
   if (root.parentElement !== $('tree')) $('tree').replaceChildren(root);
   $('overall-label').textContent = scenario === 'smooth' ? 'What the caller displays' : 'What the caller observes';
   $('overall').textContent = percent(scenario === 'smooth' ? frame.display_fraction : frame.snapshot.root.fraction);

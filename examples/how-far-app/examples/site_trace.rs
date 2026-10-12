@@ -148,29 +148,30 @@ fn fork() -> String {
         PhaseSpec::new("Read color profile", 1, Total::Exact(12)),
     ]);
     trace.event(&observer, "Fork two different operations", "One branch examines image tiles; the other reads profile tags. Your threads or runtime schedule them.", "let [pixels, metadata] = stage.fork(specs);");
-    trace.event(&observer, "Independent work, one progress tree", "Both branches report their own units. This timeline illustrates one possible interleaving.", "analyze_tiles(&image, &pixels)\nread_profile(&bytes, &metadata)");
+    trace.event(&observer, "Independent work, one progress tree", "Inside std::thread::scope, spawn both workers before joining either. Each owns its stage and returns its result. This trace illustrates one possible interleaving.", "let pixels_task = scope.spawn(move ||\n    analyze_tiles(&image, &pixels)\n        .finish_phase(pixels));\nlet metadata_task = scope.spawn(move ||\n    read_profile(&bytes, &metadata)\n        .finish_phase(metadata));");
     for _ in 0..12 {
         pixels.step(4).unwrap();
+        trace.frame(&observer, 30);
         metadata.step(1).unwrap();
-        trace.frame(&observer, 55);
+        trace.frame(&observer, 25);
     }
     Ok::<_, StopReason>(()).finish_phase(metadata).unwrap();
-    trace.event(&observer, "The color profile is ready", "Finishing this branch leaves the histogram and its parent running. Different return types are fine.", "read_profile(&bytes, &metadata).finish_phase(metadata)");
+    trace.event(&observer, "The color profile is ready", "Finishing this branch leaves the histogram and its parent running. Different return types are fine.", "// The metadata worker has returned.\n// The histogram worker is still running.");
     for _ in 0..52 {
         pixels.step(4).unwrap();
         trace.frame(&observer, 55);
     }
     Ok::<_, StopReason>(()).finish_phase(pixels).unwrap();
-    trace.event(&observer, "Join both results", "Wait for both workers before combining their results. Finishing the children does not finish their parent.", "let histogram = pixels_task.join();\nlet profile = metadata_task.join();");
+    trace.event(&observer, "Join both results", "Wait for both workers before combining their results. Finishing the children does not finish their parent.", "let histogram = pixels_task.join().unwrap();\nlet profile = metadata_task.join().unwrap();\nlet combined_result = match (histogram, profile) {\n    (Ok(h), Ok(p)) => Ok((h, p)),\n    (Err(e), _) | (_, Err(e)) => Err(e),\n};");
     trace.frame(&observer, 0);
     Ok::<_, StopReason>(()).finish_phase(stage).unwrap();
+    let stage = stages.begin(manifest);
     trace.event(
         &observer,
         "Write the export manifest",
         "Hand the combined result to the parent, then continue with the next sequential operation.",
         "combined_result.finish_phase(stage)?;\nlet stage = stages.begin(manifest);",
     );
-    let stage = stages.begin(manifest);
     for _ in 0..4 {
         stage.step(1).unwrap();
         trace.frame(&observer, 100);
@@ -178,7 +179,7 @@ fn fork() -> String {
     Ok::<_, StopReason>(()).finish_phase(stage).unwrap();
     let result = stages.complete(Ok::<_, StopReason>(()));
     root.complete(result).unwrap();
-    trace.event(&observer, "Ready for export", "All branches have joined, the manifest is complete, and the caller has handed over the final result.", "root.complete(prepare_export(input, &root))");
+    trace.event(&observer, "Ready for export", "All branches have joined, the manifest is complete, and the caller has handed over the final result.", "let result = prepare_export(input, &root);\nroot.complete(result)");
     assert_eq!(
         observer.snapshot().status,
         Status::Finished(Outcome::Succeeded)

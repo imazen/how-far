@@ -704,3 +704,12 @@ footer .brand {
 #diagnostic details { margin: 10px 0; }
 #diagnostic summary { cursor: pointer; font-weight: 600; }
 #diagnostic details p { margin: 10px 0; }
+
+/* Display estimates and recorded counts remain distinct. */
+.node[data-estimated="true"] > .track > span:first-child { background: var(--green); }
+.node[data-execution="ForkJoin"] > .node-children { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-left: 0; padding-left: 0; border-left: 0; }
+.node[data-execution="ForkJoin"] > .node-children > .node { border-top: 1px solid #d6d2e4; padding-top: 12px; }
+.event-panel pre { height: 180px; min-height: 180px; overflow: auto; }
+@media (max-width: 760px) {
+  .node[data-execution="ForkJoin"] > .node-children { grid-template-columns: 1fr; gap: 0; }
+}

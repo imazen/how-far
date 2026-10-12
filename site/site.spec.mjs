@@ -57,6 +57,8 @@ test('autoplay cycles, manual controls stop cycling, and smoothing has real inte
   const recorded = Number((await page.locator('#recorded-value').textContent()).replace('%', ''));
   const shown = Number((await page.locator('#smoothed-value').textContent()).replace('%', ''));
   expect(shown).toBeGreaterThan(recorded);
+  expect(await page.locator('#tree > .node > .track > span').first().getAttribute('style')).toBe(await page.locator('#smoothed-bar').getAttribute('style'));
+  expect(await page.locator('#tree > .node > .track > span').first().getAttribute('style')).not.toBe(await page.locator('#recorded-bar').getAttribute('style'));
   await expect(page.locator('#overall-label')).toHaveText('What the caller displays');
   expect(await page.locator('#overall').textContent()).toBe(await page.locator('#smoothed-value').textContent());
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
@@ -174,4 +176,38 @@ test('every progress display keeps one decimal place', async ({ page }) => {
       await page.getByRole('button', { name: 'Next event' }).click();
     } while (true);
   }
+});
+
+
+test('parallel analysis shows fork ownership, independent reports and both joins', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('./');
+  await page.locator('[data-scenario="fork"]').click();
+  const trace = (await (await page.request.get('traces.json')).json()).fork;
+  const fork = page.locator('.node[data-execution="ForkJoin"]');
+  await expect(fork.locator(':scope > .node-details')).toContainText('parallel branches');
+  const branches = fork.locator(':scope > .node-children > .node');
+  const boxes = await branches.evaluateAll(nodes => nodes.map(node => ({ left: node.getBoundingClientRect().left, top: node.getBoundingClientRect().top })));
+  expect(boxes).toHaveLength(2);
+  expect(boxes[0].top).toBe(boxes[1].top);
+  expect(boxes[1].left).toBeGreaterThan(boxes[0].left);
+  await page.getByRole('button', { name: 'Next event' }).click();
+  await expect(page.locator('#event-code')).toContainText('let pixels_task = scope.spawn');
+  await expect(page.locator('#event-code')).toContainText('let metadata_task = scope.spawn');
+  await page.getByRole('button', { name: 'Next event' }).click();
+  const profileReady = trace.frames[trace.events[2].frame].snapshot.root;
+  expect(profileReady.fraction).toBe(0.3125);
+  expect(profileReady.children[0].children[0].completed).toBe('48');
+  expect(profileReady.children[0].children[1].outcome).toBe('Succeeded');
+  expect(profileReady.children[0].status).toBe('Running');
+  await page.getByRole('button', { name: 'Next event' }).click();
+  await expect(page.locator('#event-code')).toContainText('pixels_task.join()');
+  await expect(page.locator('#event-code')).toContainText('metadata_task.join()');
+  await expect(page.locator('#event-code')).toContainText('match (histogram, profile)');
+  await expect(fork).toHaveAttribute('data-status', 'Running');
+  await page.getByRole('button', { name: 'Next event' }).click();
+  await expect(page.locator('.node[data-status="Running"] > .node-heading > .node-name')).toHaveText(['Prepare a photo export', 'Write export manifest']);
+  const activeFrames = trace.frames.filter(frame => frame.event === 1).map(frame => frame.snapshot.root.children[0].children);
+  expect(activeFrames.some((children, index) => index > 0 && children[0].completed !== activeFrames[index - 1][0].completed && children[1].completed === activeFrames[index - 1][1].completed)).toBe(true);
 });

@@ -27,9 +27,15 @@ The player reserves a stable panel height across scenarios and advances work
 without pauses for explanatory text. The step controls still expose every
 result handoff. Hatched segments mark the tracker's unresolved budget share.
 
-The smoothing example uses the Rust display estimate for the caller's headline,
+The smoothing example uses the Rust display estimate for the caller's headline and main bar,
 while retaining recorded counts and the side-by-side comparison. All percentage
 readouts keep one decimal place. The diagnostic example deliberately under-reports,
 over-reports, varies per-unit costs and abandons a stage. Its injected clock follows
 the illustrative playback timeline; findings are real library output, not production
 measurements. Each finding has an expandable explanation from the diagnostic library.
+
+Parallel analysis labels the fork and lays its branches side by side on desktop.
+Its code snippets show scoped worker creation, both joins, combined error handling
+and the enclosing result handoff. The deterministic trace illustrates interleaved
+reports; the [integration guide](../docs/how-far-integration.md#forkjoin-with-different-operations)
+contains the compiled scoped-thread example.

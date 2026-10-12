@@ -20,3 +20,9 @@
   child had an unknown total, hiding known siblings' progress. Snapshots,
   summaries and smoothing now count known progress without renormalizing
   weights; unresolved_fraction preserves unknown shares.
+
+- Fixed after 0.1 publication: the smoothing demo's headline used the Rust
+  estimate but its main bar used recorded progress. Both now use the estimate;
+  the comparison keeps recorded progress separate. Parallel analysis now shows
+  worker creation before joins, displays parallel branches distinctly, and
+  starts the manifest before recording its active-stage event.
