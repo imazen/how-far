@@ -61,6 +61,11 @@ check-integration:
     cargo test -p how-far-example-app --all-features --color never
     cargo run -p how-far-example-app --example integration --color never
 
+# Compile all README/guide examples and check rustdoc links and warnings.
+check-docs:
+    cargo test --workspace --all-features --doc --color never
+    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps --color never
+
 # Materialize a new fixture directory; existing directories are protected.
 prepare-encoder source destination:
     python3 dev/adopt-zenpng.py "{{source}}" "{{destination}}"
@@ -70,7 +75,7 @@ check-encoder destination:
     cargo test --manifest-path "{{destination}}/probe/Cargo.toml" --features progress
     cargo check --manifest-path "{{destination}}/probe/Cargo.toml" --no-default-features
 
-# Named stage lifecycle and forwarding contracts.
+# Stage reservation, fork lifecycle and forwarding contracts.
 check-direct-stages:
     cargo test -p how-far-along --test direct_stages
 

@@ -16,6 +16,8 @@
 
 ### Changed
 
+- Lead adoption docs with a complete library/caller example, variable-bound stages and tested custom error classification; pin setup instructions to the merged API (`7b88ef7b`).
+
 - Stop forwarding `how-far-along/std` to the compatibility feature `enough/std`; both configurations already enable `enough/alloc`.
 
 - Test the library integration guide as doctests and update the real zenpng fixture for caller-owned completion and padded input (`04398811`, `fa1b4d2c`, `7e1fba51`).

@@ -1,3 +1,4 @@
+#![doc = include_str!("../../../README.md")]
 #![doc = include_str!("../../../docs/how-far-integration.md")]
 #![doc = include_str!("../../../docs/how-far-testing-and-tuning.md")]
 use how_far::{Total, prelude::*};

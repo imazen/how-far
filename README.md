@@ -1,62 +1,99 @@
 # how-far [![CI](https://img.shields.io/github/actions/workflow/status/imazen/how-far/ci.yml?style=flat-square&label=CI)](https://github.com/imazen/how-far/actions/workflows/ci.yml) [![MSRV](https://img.shields.io/badge/MSRV-1.88-blue?style=flat-square)](https://doc.rust-lang.org/cargo/reference/manifest.html#the-rust-version-field) [![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue?style=flat-square)](#license)
 
-Cooperative cancellation and progress for library code. A library accepts
-`&dyn Pulse`, checks it for cancellation, reports finished units of work and
-weighted nested phases, and returns its own ordinary `Result`. The caller
-decides whether anything tracks, displays or profiles that progress.
+Add cooperative cancellation and progress to a Rust library through one
+argument: `&dyn Pulse`. Your functions keep their ordinary inputs and results.
+The caller chooses whether to track progress, display it, or collect diagnostics.
 
-Cancellation comes from [`enough`](https://github.com/imazen/enough): a
-`Pulse` is an `enough::Stop`, so the same value stops the work and reports on
-it.
+## Start with one function
+
+This library function reports completed bytes and checks for cancellation.
+It needs only `how-far`; the application adds `how-far-along` to observe it.
 
 ```rust
-use how_far::{prelude::*, PhaseSpec, Stages, StopReason, Total};
+use how_far::{prelude::*, StopReason};
+use how_far_along::{Phase, PulseTree, Total, Unstoppable};
 
-fn encode(rows: &[u8], pulse: &dyn Pulse) -> Result<(), StopReason> {
-    let (mut stages, [encode, _metadata]) = Stages::define(pulse, [
-        PhaseSpec::new("encode", 1, Total::Exact(rows.len() as u64)).units("rows"),
-        PhaseSpec::new("optional metadata", 1, Total::Exact(1)),
-    ]);
-    let encode = stages.begin(encode);
-    encode_rows(rows, &encode).finish_phase(encode)?;
-    stages.complete(Ok(()))
-}
-
-fn encode_rows(rows: &[u8], pulse: &dyn Pulse) -> Result<(), StopReason> {
+fn checksum(bytes: &[u8], pulse: &dyn Pulse) -> Result<u64, StopReason> {
     pulse.check()?;
-    let mut pace = pulse.paced(64);
-    for _row in rows {
-        // Encode the row, then report completed work.
-        pace.step(1)?;
+    let mut sum = 0;
+    for &byte in bytes {
+        sum += u64::from(byte);
+        pulse.step(1)?; // Count completed work, then check for cancellation.
     }
-    pace.finish()
+    Ok(sum)
 }
+
+let bytes = b"hello";
+let tree = PulseTree::new(
+    Phase::new("checksum", Total::Exact(bytes.len() as u64)), Unstoppable);
+let observer = tree.observer();
+let sum = checksum(bytes, &tree).finish_phase(tree)?;
+assert_eq!(sum, 532);
+assert_eq!(observer.snapshot().fraction(), Some(1.0));
+# Ok::<(), StopReason>(())
 ```
 
-| Crate | For | |
-| --- | --- | --- |
-| [`how-far`](crates/how-far/README.md) | libraries | The `&dyn Pulse` interface: cancellation, completed units, weighted phases. `no_std + alloc`, depends only on `enough`. |
-| [`how-far-along`](crates/how-far-along/README.md) | applications | Progress trees, snapshots, pollers, JSON, checkpoint callbacks, and optional display smoothing (`ProgressSmoother`). `no_std + alloc`. |
-| [`how-far-really`](crates/how-far-really/README.md) | tests and tuning | Opt-in profiling of checkpoint cadence and diagnostics of protocol misuse, stage weights, uneven unit pace and stages to declare. `std`. |
+The library reports work; the caller finishes the root with its result.
+`.finish_phase(tree)` records success, failure or cancellation and returns that
+same result. Keep it before `?` so errors also reach the tracker. The observer
+can be retained by a UI or another thread while work runs.
 
-All three need Rust 1.88.
+Pass `&how_far::NoPulse` when you need neither tracking nor cancellation, or
+`&how_far::StopOnly::borrowed(&token)` for cancellation alone. A `Pulse` is also
+an [`enough::Stop`](https://github.com/imazen/enough), so existing stop-aware
+code can use the same handle. For tight loops, `pulse.paced(64)` batches reports
+and checks; finish with `pace.finish()` to check the last partial batch.
 
-- [Design](docs/how-far-design.md)
-- [Testing and tuning](docs/how-far-testing-and-tuning.md)
-- [Validation](docs/how-far-validation.md)
-- [Cross-crate examples](examples/how-far-app/README.md)
-- [Measurements](benchmarks/how-far-2026-10-06.md)
+## Add it to your project
 
-## Status
+The crates are not published yet. These dependencies use the merged API:
 
-Not yet published. `how-far` needs `enough` 0.4.5 or later, the first release
-with `enough::AsStopReason`.
+```toml
+[dependencies]
+how-far = { git = "https://github.com/imazen/how-far", rev = "7b88ef7b55a2253422e3728106aafd8437724328" }
+how-far-along = { git = "https://github.com/imazen/how-far", rev = "7b88ef7b55a2253422e3728106aafd8437724328" }
+```
+
+For a library, keep only `how-far` in production dependencies; put the tracker
+in `dev-dependencies` when it is used only by tests and examples. All three
+crates need Rust 1.88. Core is `no_std + alloc`, has no feature flags, and depends
+only on `enough`. [Dependency details](docs/how-far-integration.md#dependencies-before-publication)
+cover diagnostics and matching an existing `enough` dependency.
+
+## Grow with the work
+
+Start with checkpoints. Add structure when you have distinct operations to show:
+
+| Your work | Pattern |
+| --- | --- |
+| Different sequential operations | Bind variables with `Stages::define`, then `stages.begin(decode)` and ordinary function calls. [Example](crates/how-far/README.md#several-operations) |
+| Independent branches that join | `stage.fork([specs...])` gives each branch a handle; your threads or async runtime schedule and join them. [Example](docs/how-far-integration.md#forkjoin-with-different-operations) |
+| The same operation over a runtime-sized list | `Stages::new` and `begin_next()` inside the loop. [Example](examples/how-far-pipeline/src/lib.rs) |
+
+Each active handle uses the same `.finish_phase(handle)?` result handoff.
+Stages need no closures; `run` and `complete_with` remain optional conveniences.
+[The integration guide](docs/how-far-integration.md) explains custom errors,
+optional stages, cancellation and caller-owned completion.
+
+| Crate | Use it for |
+| --- | --- |
+| [`how-far`](crates/how-far/README.md) | Library-facing cancellation, counters, weighted stages and result handoffs. `no_std + alloc`. |
+| [`how-far-along`](crates/how-far-along/README.md) | Application progress trees, snapshots, callbacks and optional display smoothing. `no_std + alloc`; `std` is the default. |
+| [`how-far-really`](crates/how-far-really/README.md) | Tests and tuning: find missing handoffs, checkpoint gaps and uneven progress. Requires `std`. |
+
+Try the [cross-crate example](examples/how-far-app/README.md) from this checkout:
+
+```sh
+cargo run -p how-far-example-app --example integration
+```
+
+The quickstart and integration guide run as doctests. See
+[design and API boundaries](docs/how-far-design.md),
+[testing and tuning](docs/how-far-testing-and-tuning.md),
+[validation coverage](docs/how-far-validation.md), and
+[compile-cost measurements](benchmarks/stage-reservations-2026-10-12.md).
 
 ## License
 
 Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE),
 at your option.
-
-See the [tested integration guide](docs/how-far-integration.md) for dependency setup, result
-handoffs, callbacks, diagnostics, and caller-side display smoothing. Run it
-with `just check-integration` from the workspace root.

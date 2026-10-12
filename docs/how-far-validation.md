@@ -40,10 +40,16 @@ durations are CPU time or that fractions are elapsed time.
 
 Browser and Wasm guidance is in [the design notes](how-far-design.md#wasm).
 
-The [integration guide](how-far-integration.md) is compiled as application-crate
-doctests. `just check-integration` runs it and the caller example. Display
+The [root quickstart](../README.md) and
+[integration guide](how-far-integration.md) are compiled as application-crate
+doctests, including custom error classification and the fork–join example. `just check-integration` runs it and the caller example. Display
 smoothing contracts live in `crates/how-far-along/tests/smooth.rs`; uneven pace
 and feature-gated grouping are covered by `crates/how-far-really/tests/diagnostics.rs`.
+
+`just check-docs` runs workspace doctests and builds rustdoc with warnings
+rejected. On 2026-10-12, the root README's exact dependency block and Rust
+quickstart also compiled and ran in a separate consumer using Git revision
+`7b88ef7b`, with no workspace path overrides.
 
 ## Build and runtime cost
 

@@ -7,20 +7,23 @@ the cross-crate scenarios and the runnable `integration` example.
 
 ## Dependencies before publication
 
-The how-far crates are not published yet. Pin them to the same revision:
+The how-far crates are not published yet. Start with `how-far` in the library;
+add tracking and diagnostics as development tools when needed. These entries
+use the merged API and keep all three crates on the same revision:
 
 ```toml
 [dependencies]
-how-far = { git = "https://github.com/imazen/how-far", rev = "699c683baad933de6f7b66d6780fba10c40caa79" }
+how-far = { git = "https://github.com/imazen/how-far", rev = "7b88ef7b55a2253422e3728106aafd8437724328" }
 
 [dev-dependencies]
-how-far-along = { git = "https://github.com/imazen/how-far", rev = "699c683baad933de6f7b66d6780fba10c40caa79", features = ["smooth"] }
-how-far-really = { git = "https://github.com/imazen/how-far", rev = "699c683baad933de6f7b66d6780fba10c40caa79" }
+how-far-along = { git = "https://github.com/imazen/how-far", rev = "7b88ef7b55a2253422e3728106aafd8437724328", features = ["smooth"] }
+how-far-really = { git = "https://github.com/imazen/how-far", rev = "7b88ef7b55a2253422e3728106aafd8437724328" }
 ```
 
 For a library, the tracker and diagnostic tools normally belong in
 `dev-dependencies`. An application displaying progress needs `how-far-along`
-in its normal dependencies. Put `how-far-really` in normal dependencies only
+in its normal dependencies. The `smooth` feature is needed only for the display
+smoother used later in this guide. Put `how-far-really` in normal dependencies only
 when the application intentionally collects diagnostics at runtime. Stage
 grouping stays in that crate behind `experimental-stage-suggestions`; it is tuning advice
 from observed runs, not a library dependency or an automatically applied plan.
@@ -30,8 +33,8 @@ different `Stop` and `StopReason` identities.
 
 ## Library code: close what you own
 
-Bind stage reservations to variables and call ordinary functions with their handles. Hand each
-result to `.finish_phase(stage)` before `?`: a failure immediately marks the
+Bind stage reservations to variables and call ordinary functions with their
+handles. Hand each result to `.finish_phase(stage)` before `?`: a failure immediately marks the
 remaining sequence `NotRun`. On success, `stages.complete(Ok(value))` resolves
 unused optional stages. The borrowed input pulse remains its caller's to finish.
 
@@ -92,9 +95,47 @@ helpers, including when a closure is more convenient for a short local body.
 
 Keep the library's error type. Implement `From<StopReason>` to use `?`, and
 `AsStopReason` to classify cancellation, delegating through nested errors.
-For an error type you cannot implement that trait for, use the classified
-helpers. `Stages` keeps rejected observations out of the work's result and
-retains cancellation through untracked children. Use `TryStages` only when planning errors are part of the intended public contract.
+Neither trait changes the error returned to your caller:
+
+```rust
+use how_far::{prelude::*, StopReason};
+use how_far_along::{FnPulse, Outcome, Status};
+
+#[derive(Debug, PartialEq)]
+enum Error {
+    Stopped(StopReason),
+    InvalidInput,
+}
+impl From<StopReason> for Error {
+    fn from(reason: StopReason) -> Self { Self::Stopped(reason) }
+}
+impl AsStopReason for Error {
+    fn as_stop_reason(&self) -> Option<StopReason> {
+        match self {
+            Self::Stopped(reason) => Some(*reason),
+            Self::InvalidInput => None,
+        }
+    }
+}
+fn validate(bytes: &[u8], pulse: &dyn Pulse) -> Result<(), Error> {
+    pulse.check()?;
+    if bytes.is_empty() { return Err(Error::InvalidInput); }
+    Ok(())
+}
+
+let pulse = FnPulse::new("validate", |_| Err(StopReason::Cancelled));
+let observer = pulse.observer();
+let result = validate(&[1], &pulse).finish_phase(pulse);
+assert_eq!(result, Err(Error::Stopped(StopReason::Cancelled)));
+assert_eq!(observer.snapshot().status, Status::Finished(Outcome::Cancelled));
+assert_eq!(validate(&[], &how_far::NoPulse), Err(Error::InvalidInput));
+```
+
+For an error type you cannot implement `AsStopReason` for, use
+`stage.complete_classified(result, is_stop)` with your own classifier.
+`Stages` keeps rejected observations out of the work's result and retains
+cancellation through untracked children. Use `TryStages` only when planning
+errors are part of the intended public contract.
 
 Pacing trades checkpoint frequency for overhead. `Paced::finish` checks the
 last partial batch; Drop only reports it. Report work after doing it. Use
@@ -107,6 +148,17 @@ An active stage can fork into branches with different inputs, operations and
 result types. `fork` starts the branch handles but schedules nothing. The
 closures below belong to scoped threading; the operation calls and result
 handoffs are the same as sequential code.
+
+```mermaid
+flowchart LR
+    before["Previous stage"] --> pixels
+    before --> metadata
+    subgraph analysis["One active stage"]
+        pixels["Pixel analysis"] --> join["Join results"]
+        metadata["Read metadata"] --> join
+    end
+    join --> after["Next stage"]
+```
 
 ```rust
 use how_far::{prelude::*, PhaseSpec, Stages, StopReason, Total};
