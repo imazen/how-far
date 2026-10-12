@@ -2,14 +2,14 @@
 """Guard the build cost of how-far and how-far-along.
 
 Fails the run if how-far gains any features, a build script or a dependency other
-than `enough`; if one `Stages::run` call site adds more than --ir-budget
+than `enough`; if a closure, reserved stage or fork branch adds more than --ir-budget
 lines of how-far's unoptimized LLVM IR to the caller's crate; or if
 how-far-along and how-far-really's own unoptimized IR, grows past its budget.
 
 With `perf`, also reports rustc instructions (as rustc-perf does; they do not
 depend on machine load): how-far and how-far-along against an empty no_std
-crate, and one `Stages::run` call site against a plain function
-call, for check, debug and release builds.
+crate, and closure, reserved-stage and fork handoffs against plain function
+calls, for check, debug and release builds.
 """
 import argparse
 import json
@@ -70,11 +70,11 @@ def probe(n, stages, direct=False):
         body += "use how_far::{PhaseSpec, Stages, Total};\n"
         plan = ", ".join(f'PhaseSpec::new("s{i}", 1, Total::Unknown)' for i in range(n))
         if direct:
-            calls = "".join(f'    let stage = stages.begin("s{i}");\n'
+            calls = "".join(f'    let stage = stages.begin(s{i});\n'
                             f"    sum += work{i}(data, &stage).finish_phase(stage)?;\n"
                             for i in range(n))
             return body + ("pub fn run(data: &mut [u8], pulse: &dyn Pulse) -> Result<u64, StopReason> {\n"
-                           f"    let mut stages = Stages::new(pulse, &[{plan}]);\n"
+                           f"    let (mut stages, [{', '.join(f's{i}' for i in range(n))}]) = Stages::define(pulse, [{plan}]);\n"
                            f"    let mut sum = 0;\n{calls}"
                            "    stages.complete(Ok(sum))\n}\n")
         calls = "".join(f"    sum += stages.run(|stage| work{i}(data, stage))?;\n"
@@ -88,12 +88,32 @@ def probe(n, stages, direct=False):
                    f"    let mut sum = 0;\n{calls}    Ok(sum)\n}}\n")
 
 
+def fork_probe(n):
+    # Scheduling is deliberately absent: this measures the ownership/handoff
+    # interface independently of a threading library's monomorphizations.
+    body = "use how_far::{prelude::*, PhaseSpec, Stages, StopReason, Total};\n"
+    body += "".join(WORK.format(i=i, m=2 * i + 3) for i in range(n))
+    names = ", ".join(f"s{i}" for i in range(n))
+    specs = ", ".join(f'PhaseSpec::new("s{i}", 1, Total::Unknown)' for i in range(n))
+    calls = "".join(f"    let r{i} = work{i}(data, &s{i}).finish_phase(s{i});\n" for i in range(n))
+    results = ", ".join(f"r{i}" for i in range(n))
+    return body + (
+        "pub fn run(data: &mut [u8], pulse: &dyn Pulse) -> Result<u64, StopReason> {\n"
+        '    let (mut stages, [work]) = Stages::define(pulse, [PhaseSpec::new("work", 1, Total::Unknown)]);\n'
+        "    let work = stages.begin(work);\n"
+        f"    let [{names}] = work.fork([{specs}]);\n"
+        f"{calls}    let result: Result<u64, StopReason> = [{results}].into_iter().sum();\n"
+        "    let sum = result.finish_phase(work)?;\n"
+        "    stages.complete(Ok(sum))\n}\n")
+
+
 SMALL, LARGE = 8, 32
 PROBES = {
     "empty": "#![no_std]\nextern crate alloc;\npub use enough::Stop;\n",
     f"plain{SMALL}": probe(SMALL, False), f"plain{LARGE}": probe(LARGE, False),
     f"stages{SMALL}": probe(SMALL, True), f"stages{LARGE}": probe(LARGE, True),
     f"direct{SMALL}": probe(SMALL, True, True), f"direct{LARGE}": probe(LARGE, True, True),
+    f"fork{SMALL}": fork_probe(SMALL), f"fork{LARGE}": fork_probe(LARGE),
 }
 PROFILES = {"check": ["check"], "debug": ["build"], "release": ["build", "--release"]}
 # how-far-along feature sets, each built in its own workspace so cargo does
@@ -203,9 +223,13 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
           f"(budget {args.ir_budget})")
     assert per_site <= args.ir_budget, "Stages::run instantiates too much code per call site"
     direct_site = (ir_lines(f"direct{LARGE}") - ir_lines(f"direct{SMALL}")) / (LARGE - SMALL)
-    print(f"how-far IR per named stage call site: {direct_site:.0f} lines "
+    print(f"how-far IR per reserved stage call site: {direct_site:.0f} lines "
           f"(budget {args.ir_budget})")
-    assert direct_site <= args.ir_budget, "named stage handoff instantiates too much code per call site"
+    assert direct_site <= args.ir_budget, "reserved stage handoff instantiates too much code per call site"
+    fork_site = (ir_lines(f"fork{LARGE}") - ir_lines(f"fork{SMALL}")) / (LARGE - SMALL)
+    print(f"how-far IR per fork branch call site: {fork_site:.0f} lines "
+          f"(budget {args.ir_budget})")
+    assert fork_site <= args.ir_budget, "fork handoff instantiates too much code per call site"
     for name, budget in zip(ALONG, args.along_budget):
         lines = ir_lines(f"observation/{name}", only_how_far=False)
         print(f"{ALONG[name][0]} IR, {name}: {lines} lines (budget {budget})")
@@ -251,8 +275,10 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
         "how-far-really": lambda p: m[p, "observation/diagnostics"],
         "plain function call, per call site": lambda p:
             (m[p, f"plain{LARGE}"] - m[p, f"plain{SMALL}"]) / (LARGE - SMALL),
-        "named stage, per call site": lambda p:
+        "reserved stage, per call site": lambda p:
             (m[p, f"direct{LARGE}"] - m[p, f"direct{SMALL}"]) / (LARGE - SMALL),
+        "fork branch, per call site": lambda p:
+            (m[p, f"fork{LARGE}"] - m[p, f"fork{SMALL}"]) / (LARGE - SMALL),
         "Stages::run, per call site": lambda p:
             (m[p, f"stages{LARGE}"] - m[p, f"stages{SMALL}"]) / (LARGE - SMALL),
     }
