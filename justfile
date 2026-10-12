@@ -34,7 +34,7 @@ checkpoint-asm features="std" function="<how_far_along::pulse::PulseTree as enou
 # Local library gates; also exercise individual no-default-feature packages.
 check:
     cargo fmt -p how-far -p how-far-along -p how-far-really -p how-far-example-codec -p how-far-example-pipeline -p how-far-example-app -- --check
-    cargo test --workspace --all-features --color never
+    cargo test --workspace --all-features --no-fail-fast --color never
     cargo test -p how-far --no-default-features --color never
     cargo test -p how-far-along --no-default-features --color never
     cargo clippy --workspace --all-targets --all-features --color never -- -D warnings
@@ -69,3 +69,12 @@ prepare-encoder source destination:
 check-encoder destination:
     cargo test --manifest-path "{{destination}}/probe/Cargo.toml" --features progress
     cargo check --manifest-path "{{destination}}/probe/Cargo.toml" --no-default-features
+
+# Named stage lifecycle and forwarding contracts.
+check-direct-stages:
+    cargo test -p how-far-along --test direct_stages
+
+# Embedded tracker configurations with all optional tracker APIs.
+check-embedded:
+    cargo build -p how-far-along --target thumbv7em-none-eabihf --no-default-features --features smooth
+    cargo build -p how-far-along --target wasm32-unknown-unknown --no-default-features --features smooth

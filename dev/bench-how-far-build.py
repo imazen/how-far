@@ -63,12 +63,20 @@ fn work{i}(data: &mut [u8], pulse: &dyn Pulse) -> Result<u64, StopReason> {{
 """
 
 
-def probe(n, stages):
+def probe(n, stages, direct=False):
     body = "use how_far::prelude::*;\nuse how_far::StopReason;\n"
     body += "".join(WORK.format(i=i, m=2 * i + 3) for i in range(n))
     if stages:
         body += "use how_far::{PhaseSpec, Stages, Total};\n"
         plan = ", ".join(f'PhaseSpec::new("s{i}", 1, Total::Unknown)' for i in range(n))
+        if direct:
+            calls = "".join(f'    let stage = stages.begin("s{i}");\n'
+                            f"    sum += work{i}(data, &stage).finish_phase(stage)?;\n"
+                            for i in range(n))
+            return body + ("pub fn run(data: &mut [u8], pulse: &dyn Pulse) -> Result<u64, StopReason> {\n"
+                           f"    let mut stages = Stages::new(pulse, &[{plan}]);\n"
+                           f"    let mut sum = 0;\n{calls}"
+                           "    stages.complete(Ok(sum))\n}\n")
         calls = "".join(f"    sum += stages.run(|stage| work{i}(data, stage))?;\n"
                         for i in range(n))
         return body + ("pub fn run(data: &mut [u8], pulse: &dyn Pulse) -> Result<u64, StopReason> {\n"
@@ -85,6 +93,7 @@ PROBES = {
     "empty": "#![no_std]\nextern crate alloc;\npub use enough::Stop;\n",
     f"plain{SMALL}": probe(SMALL, False), f"plain{LARGE}": probe(LARGE, False),
     f"stages{SMALL}": probe(SMALL, True), f"stages{LARGE}": probe(LARGE, True),
+    f"direct{SMALL}": probe(SMALL, True, True), f"direct{LARGE}": probe(LARGE, True, True),
 }
 PROFILES = {"check": ["check"], "debug": ["build"], "release": ["build", "--release"]}
 # how-far-along feature sets, each built in its own workspace so cargo does
@@ -193,6 +202,10 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
     print(f"how-far IR per Stages::run call site: {per_site:.0f} lines "
           f"(budget {args.ir_budget})")
     assert per_site <= args.ir_budget, "Stages::run instantiates too much code per call site"
+    direct_site = (ir_lines(f"direct{LARGE}") - ir_lines(f"direct{SMALL}")) / (LARGE - SMALL)
+    print(f"how-far IR per named stage call site: {direct_site:.0f} lines "
+          f"(budget {args.ir_budget})")
+    assert direct_site <= args.ir_budget, "named stage handoff instantiates too much code per call site"
     for name, budget in zip(ALONG, args.along_budget):
         lines = ir_lines(f"observation/{name}", only_how_far=False)
         print(f"{ALONG[name][0]} IR, {name}: {lines} lines (budget {budget})")
@@ -238,6 +251,8 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
         "how-far-really": lambda p: m[p, "observation/diagnostics"],
         "plain function call, per call site": lambda p:
             (m[p, f"plain{LARGE}"] - m[p, f"plain{SMALL}"]) / (LARGE - SMALL),
+        "named stage, per call site": lambda p:
+            (m[p, f"direct{LARGE}"] - m[p, f"direct{SMALL}"]) / (LARGE - SMALL),
         "Stages::run, per call site": lambda p:
             (m[p, f"stages{LARGE}"] - m[p, f"stages{SMALL}"]) / (LARGE - SMALL),
     }
