@@ -11,11 +11,11 @@ The how-far crates are not published yet. Pin them to the same revision:
 
 ```toml
 [dependencies]
-how-far = { git = "https://github.com/imazen/how-far", rev = "b90298891ed81ce0cafc70ae425cffb7b0670b82" }
+how-far = { git = "https://github.com/imazen/how-far", rev = "be613b9f0a6f072c62ab25f17166492856f98d25" }
 
 [dev-dependencies]
-how-far-along = { git = "https://github.com/imazen/how-far", rev = "b90298891ed81ce0cafc70ae425cffb7b0670b82", features = ["callback", "smooth"] }
-how-far-really = { git = "https://github.com/imazen/how-far", rev = "b90298891ed81ce0cafc70ae425cffb7b0670b82" }
+how-far-along = { git = "https://github.com/imazen/how-far", rev = "be613b9f0a6f072c62ab25f17166492856f98d25", features = ["callback", "smooth"] }
+how-far-really = { git = "https://github.com/imazen/how-far", rev = "be613b9f0a6f072c62ab25f17166492856f98d25" }
 ```
 
 For a library, the tracker and diagnostic tools normally belong in

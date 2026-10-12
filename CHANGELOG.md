@@ -4,7 +4,7 @@
 
 ### QUEUED BREAKING CHANGES
 
-- Before first publication: remove core `adapters` / `checked` and tracker `adapters` / `json` feature names; their APIs are unconditional. Rename diagnostics `stage-suggestions` to `experimental-stage-suggestions`. Remove the old names from downstream manifests.
+- Before first publication: remove core `adapters` / `checked` and tracker `adapters` / `json` feature names; their APIs are unconditional. Rename diagnostics `stage-suggestions` to `experimental-stage-suggestions`. Remove the old names from downstream manifests (`be613b9f`).
 
 ### Fixed
 
