@@ -21,6 +21,7 @@ import statistics
 import subprocess
 import tempfile
 import time
+from functools import cache
 from pathlib import Path
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -88,7 +89,11 @@ PROBES = {
 PROFILES = {"check": ["check"], "debug": ["build"], "release": ["build", "--release"]}
 # how-far-along feature sets, each built in its own workspace so cargo does
 # not unify their features.
-ALONG = {"std": ("how-far-along", []), "diagnostics": ("how-far-really", [])}
+ALONG = {
+    "std": ("how-far-along", []),
+    "diagnostics": ("how-far-really", []),
+    "callback": ("how-far-along", ["callback"]),
+}
 if args.feature_audit:
     ALONG.update({
         "smooth": ("how-far-along", ["smooth"]),
@@ -145,19 +150,48 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
                     elif not tag:  # how-far as a library sees it: enough without std.
                         commands[profile, crate] = argv
 
-    def ir_lines(name, only_how_far=True):
-        """Unoptimized IR lines, without debug-info records, of a debug build."""
-        argv = [a for a in commands["debug", name] if not a.startswith("--emit")]
-        out = tmp / "ir" / name.replace("/", "-")
+    @cache
+    def ir_functions(name, profile="debug"):
+        argv = [a for a in commands[profile, name] if not a.startswith("--emit")]
+        out = tmp / "ir" / profile / name.replace("/", "-")
         out.mkdir(parents=True)
         argv[argv.index("--out-dir") + 1] = str(out)
         subprocess.run([*argv, "--emit=llvm-ir"], cwd=tmp, env=env, check=True, capture_output=True)
         ir = next(out.glob("*.ll")).read_text()
+        return [(m.group(1), m.group(0)) for m in
+                re.finditer(r"^define [^\n]*?@(\S+?)\(.*?\n}\n", ir, re.S | re.M)]
+
+    def ir_lines(name, only_how_far=True):
+        """Unoptimized IR lines, without debug-info records, of a debug build."""
         return sum(
             sum(1 for line in body.splitlines()[1:] if line.strip() and not line.lstrip().startswith("#dbg"))
-            for symbol, body in ((m.group(1), m.group(0)) for m in
-                                 re.finditer(r"^define [^\n]*?@(\S+?)\(.*?\n}\n", ir, re.S | re.M))
+            for symbol, body in ir_functions(name)
             if not only_how_far or "7how_far" in symbol)
+
+    def checkpoint_ir(name):
+        found = {}
+        for symbol, body in ir_functions(name, "release"):
+            if "PulseTree" not in symbol:
+                continue
+            for method, suffix in [("check", "4Stop5check"), ("may_stop", "4Stop8may_stop")]:
+                if suffix not in symbol:
+                    continue
+                # Compare instructions, not feature-dependent symbol hashes,
+                # attribute-group indices, comments or metadata identifiers.
+                lines = [line.strip() for line in body.splitlines()[1:]
+                         if line.strip() and not line.lstrip().startswith((";", "#dbg"))]
+                instructions = "\n".join(lines)
+                instructions = re.sub(r", ![\w.]+ !\d+", "", instructions)
+                instructions = re.sub(r"#\d+", "#ATTR", instructions)
+                assert "br i1" not in instructions, f"ordinary {method} gained a conditional branch"
+                assert method not in found, f"ambiguous PulseTree::{method} symbol"
+                found[method] = instructions
+        assert set(found) == {"check", "may_stop"}, "missing ordinary checkpoint symbols"
+        return found
+
+    assert checkpoint_ir("observation/std") == checkpoint_ir("observation/callback"), \
+        "callback changes ordinary PulseTree checkpoint code"
+    print("PulseTree check/may_stop: identical branch-free release IR with callback off/on")
 
     per_site = (ir_lines(f"stages{LARGE}") - ir_lines(f"stages{SMALL}")) / (LARGE - SMALL)
     print(f"how-far IR per Stages::run call site: {per_site:.0f} lines "

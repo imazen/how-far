@@ -306,3 +306,59 @@ fn intentionally_skipped_work_is_distinct_from_work_prevented_by_failure() {
     stages.finish().unwrap();
     tree.finish(Outcome::Succeeded).unwrap();
 }
+
+#[cfg(feature = "callback")]
+#[test]
+fn nested_and_shared_callbacks_keep_the_checking_phase_and_root_observation() {
+    let calls = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen = calls.clone();
+    let root = FnPulse::new("root", move |cx| {
+        let snapshot = cx.snapshot();
+        seen.lock()
+            .unwrap()
+            .push((cx.phase_id(), cx.phase_name().to_owned(), snapshot.id));
+        Ok(())
+    });
+    let root_id = root.observer().id();
+    root.check().unwrap();
+    let outer = root
+        .split(
+            Execution::Sequence,
+            &[PhaseSpec::new("outer", 1, Total::Unknown)],
+        )
+        .unwrap();
+    let outer = outer.into_iter().next().unwrap();
+    let inner = outer
+        .split(
+            Execution::Sequence,
+            &[PhaseSpec::new("inner", 1, Total::Exact(1))],
+        )
+        .unwrap();
+    let inner = inner.into_iter().next().unwrap();
+    let shared = inner.share().unwrap();
+    let snapshot = root.observer().snapshot();
+    let outer_id = snapshot.children[0].id;
+    let inner_id = snapshot.children[0].children[0].id;
+    outer.check().unwrap();
+    inner.check().unwrap();
+    shared.check().unwrap();
+    // An ordinary tree in this callback-enabled build never dispatches it.
+    let plain = tree(Total::Unknown);
+    assert!(!plain.may_stop());
+    plain.share().unwrap().check().unwrap();
+    assert_eq!(
+        *calls.lock().unwrap(),
+        vec![
+            (root_id, "root".into(), root_id),
+            (outer_id, "outer".into(), root_id),
+            (inner_id, "inner".into(), root_id),
+            (inner_id, "inner".into(), root_id),
+        ]
+    );
+    inner.advance(1);
+    inner.finish(Outcome::Succeeded).unwrap();
+    outer.finish(Outcome::Succeeded).unwrap();
+    root.finish(Outcome::Succeeded).unwrap();
+    shared.check().unwrap();
+    assert_eq!(calls.lock().unwrap().len(), 4);
+}

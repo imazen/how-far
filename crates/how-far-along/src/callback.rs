@@ -1,7 +1,7 @@
 //! Checkpoint callbacks over the same accounting state as PulseTree.
 use crate::{
-    Child, Execution, NodeId, Observer, Outcome, Phase, PhaseSpec, PlanError, Pulse, PulseTree,
-    Report, SharedPulse, Snapshot, Stop, StopReason, Summary, Total,
+    Child, Execution, NodeId, Observer, Outcome, Phase, PhaseSpec, PlanError, Pulse, Report,
+    SharedPulse, Snapshot, Stop, StopReason, Summary, Total,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use core::{
@@ -75,6 +75,16 @@ impl Dispatcher {
         }
     }
 }
+impl crate::pulse::Policy for Arc<Dispatcher> {
+    #[track_caller]
+    fn check(&self, phase: &Observer) -> Result<(), StopReason> {
+        Dispatcher::check(self, phase)
+    }
+    fn may_stop(&self) -> bool {
+        true
+    }
+}
+
 fn decode(code: u8) -> StopReason {
     if code == 2 {
         StopReason::TimedOut
@@ -91,7 +101,7 @@ fn decode(code: u8) -> StopReason {
 /// For thread-affine UI captures use `poll::LocalPoller` with an Observer.
 #[must_use = "finish the root after its work joins; dropping it unfinished records Abandoned"]
 pub struct FnPulse {
-    tree: PulseTree,
+    tree: crate::pulse::TreePulse<Arc<Dispatcher>>,
 }
 impl FnPulse {
     /// Start an unknown-total root with a checkpoint callback.
@@ -113,7 +123,7 @@ impl FnPulse {
             stopped: AtomicU8::new(0),
         });
         Self {
-            tree: PulseTree::with_callback(phase, dispatch),
+            tree: crate::pulse::TreePulse::new(phase, dispatch),
         }
     }
     /// Observe progress without dispatching the callback.
@@ -128,7 +138,7 @@ impl FnPulse {
 impl fmt::Debug for FnPulse {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FnPulse")
-            .field("root", &self.tree.id())
+            .field("root", &self.tree.observer().id())
             .finish()
     }
 }
@@ -138,4 +148,4 @@ impl how_far::Complete for FnPulse {
         self.tree.complete_as(outcome);
     }
 }
-pulse_view!(FnPulse, tree);
+pulse_view!([] FnPulse, tree);

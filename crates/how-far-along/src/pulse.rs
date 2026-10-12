@@ -14,23 +14,18 @@ use core::{
 /// when non-owning shared views remain alive.
 #[must_use = "finish the root after its work joins; dropping it unfinished records Abandoned"]
 pub struct PulseTree {
-    node: TreePulse,
+    node: TreePulse<Arc<dyn Stop>>,
 }
 impl PulseTree {
     /// Track a phase with a shared cancellation policy.
     pub fn new(phase: Phase, stop: impl Stop + 'static) -> Self {
         Self {
-            node: TreePulse::new(
-                phase,
-                Arc::new(stop),
-                #[cfg(feature = "callback")]
-                None,
-            ),
+            node: TreePulse::new(phase, Arc::new(stop) as Arc<dyn Stop>),
         }
     }
     /// Observe the root, including after its owner finishes.
     pub fn observer(&self) -> Observer {
-        self.node.state.observer.clone()
+        self.node.observer()
     }
     /// The root's stable identity.
     pub fn id(&self) -> NodeId {
@@ -38,13 +33,7 @@ impl PulseTree {
     }
     /// Finish the root after workers and children join. On error it is abandoned.
     pub fn finish(self, outcome: Outcome) -> Result<(), PlanError> {
-        self.node.state.finish(outcome)
-    }
-    #[cfg(feature = "callback")]
-    pub(crate) fn with_callback(phase: Phase, callback: Arc<crate::callback::Dispatcher>) -> Self {
-        Self {
-            node: TreePulse::new(phase, Arc::new(crate::Unstoppable), Some(callback)),
-        }
+        self.node.finish(outcome)
     }
 }
 impl fmt::Debug for PulseTree {
@@ -59,30 +48,47 @@ const COUNTING: u8 = 1;
 const SPLIT: u8 = 2;
 const FINISHED: u8 = 3;
 
+/// Checkpoint behavior is selected by the owner type, not by a Cargo feature
+/// or a per-node Option. Cloning a policy carries it into children and views.
+pub(crate) trait Policy: Clone + Send + Sync + 'static {
+    #[track_caller]
+    fn check(&self, phase: &Observer) -> Result<(), StopReason>;
+    fn may_stop(&self) -> bool;
+}
+impl Policy for Arc<dyn Stop> {
+    #[track_caller]
+    fn check(&self, _phase: &Observer) -> Result<(), StopReason> {
+        Stop::check(self)
+    }
+    fn may_stop(&self) -> bool {
+        Stop::may_stop(self)
+    }
+}
+
 // This state is shared. The TreePulse token, not the last Arc, owns completion.
-struct State {
+struct State<S: Policy> {
     owner: OwnerCell<Phase>,
     reporter: Reporter,
     observer: Observer,
-    stop: Arc<dyn Stop>,
+    stop: S,
     activity: AtomicU8,
     closed: AtomicBool,
-    #[cfg(feature = "callback")]
-    callback: Option<Arc<crate::callback::Dispatcher>>,
 }
-struct TreePulse {
-    state: Arc<State>,
+pub(crate) struct TreePulse<S: Policy> {
+    state: Arc<State<S>>,
 }
 #[derive(Clone)]
-struct View {
-    state: Arc<State>,
+struct View<S: Policy> {
+    state: Arc<State<S>>,
 }
-impl TreePulse {
-    fn new(
-        phase: Phase,
-        stop: Arc<dyn Stop>,
-        #[cfg(feature = "callback")] callback: Option<Arc<crate::callback::Dispatcher>>,
-    ) -> Self {
+impl<S: Policy> TreePulse<S> {
+    pub(crate) fn observer(&self) -> Observer {
+        self.state.observer.clone()
+    }
+    pub(crate) fn finish(self, outcome: Outcome) -> Result<(), PlanError> {
+        self.state.finish(outcome)
+    }
+    pub(crate) fn new(phase: Phase, stop: S) -> Self {
         Self {
             state: Arc::new(State {
                 reporter: phase.deferred_reporter(),
@@ -91,13 +97,11 @@ impl TreePulse {
                 stop,
                 activity: AtomicU8::new(UNPLANNED),
                 closed: AtomicBool::new(false),
-                #[cfg(feature = "callback")]
-                callback,
             }),
         }
     }
 }
-impl State {
+impl<S: Policy> State<S> {
     fn complete(&self, outcome: Outcome) -> Result<(), PlanError> {
         self.with_owner(|phase| phase.record_outcome(outcome))??;
         self.activity.store(FINISHED, Ordering::Release);
@@ -155,12 +159,7 @@ impl State {
         let mut children = Vec::with_capacity(parts.len());
         let split = self.with_owner(|phase| {
             phase.split_each(execution, parts, &mut |phase| {
-                children.push(Child::new(TreePulse::new(
-                    phase,
-                    Arc::clone(&self.stop),
-                    #[cfg(feature = "callback")]
-                    self.callback.clone(),
-                )));
+                children.push(Child::new(TreePulse::new(phase, self.stop.clone())));
             })
         });
         match split {
@@ -178,25 +177,16 @@ impl State {
         }
     }
 }
-impl Stop for State {
+impl<S: Policy> Stop for State<S> {
     #[track_caller]
     fn check(&self) -> Result<(), StopReason> {
-        self.stop.check()?;
-        #[cfg(feature = "callback")]
-        if let Some(callback) = &self.callback {
-            return callback.check(&self.observer);
-        }
-        Ok(())
+        self.stop.check(&self.observer)
     }
     fn may_stop(&self) -> bool {
-        #[cfg(feature = "callback")]
-        if self.callback.is_some() {
-            return true;
-        }
         self.stop.may_stop()
     }
 }
-impl Report for State {
+impl<S: Policy> Report for State<S> {
     #[track_caller]
     fn advance(&self, n: u64) {
         if n == 0 {
@@ -222,12 +212,12 @@ impl Report for State {
         self.activity.load(Ordering::Relaxed) != FINISHED && self.reporter.may_report()
     }
 }
-impl Drop for TreePulse {
+impl<S: Policy> Drop for TreePulse<S> {
     fn drop(&mut self) {
         self.state.close();
     }
 }
-impl ChildPulse for TreePulse {
+impl<S: Policy> ChildPulse for TreePulse<S> {
     fn complete_inferred(self: Box<Self>, outcome: Outcome) {
         let _ = self
             .state
@@ -241,6 +231,12 @@ impl ChildPulse for TreePulse {
     }
 }
 
+impl<S: Policy> how_far::Complete for TreePulse<S> {
+    fn complete_as(self, outcome: Outcome) {
+        let _ = self.state.complete(outcome);
+    }
+}
+
 impl how_far::Complete for PulseTree {
     fn complete_as(self, outcome: Outcome) {
         let _ = self.node.state.complete(outcome);
@@ -248,8 +244,8 @@ impl how_far::Complete for PulseTree {
 }
 /// Forward the pulse traits to `self.$field`, a [`State`] or a pulse.
 macro_rules! pulse_view {
-    ($ty:ty, $field:ident $(, #[$hint:meta])?) => {
-        impl Stop for $ty {
+    ([$($generic:ident : $bound:path)?] $ty:ty, $field:ident $(, #[$hint:meta])?) => {
+        impl$(<$generic: $bound>)? Stop for $ty {
             $(#[$hint])?
             #[track_caller]
             fn check(&self) -> Result<(), StopReason> {
@@ -259,7 +255,7 @@ macro_rules! pulse_view {
                 self.$field.may_stop()
             }
         }
-        impl Report for $ty {
+        impl$(<$generic: $bound>)? Report for $ty {
             $(#[$hint])?
             #[track_caller]
             fn advance(&self, n: u64) {
@@ -269,7 +265,7 @@ macro_rules! pulse_view {
                 self.$field.may_report()
             }
         }
-        impl Pulse for $ty {
+        impl$(<$generic: $bound>)? Pulse for $ty {
             fn split(
                 &self,
                 e: Execution,
@@ -289,6 +285,6 @@ macro_rules! pulse_view {
         }
     };
 }
-pulse_view!(TreePulse, state, #[inline]);
-pulse_view!(View, state, #[inline]);
-pulse_view!(PulseTree, node);
+pulse_view!([S: Policy] TreePulse<S>, state, #[inline]);
+pulse_view!([S: Policy] View<S>, state, #[inline]);
+pulse_view!([] PulseTree, node);
