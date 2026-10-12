@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}how-far · Progress for Rust libraries{% endblock title %}</title>
+  <meta name="description" content="{{ config.description }}">
+  <meta name="theme-color" content="#f6f5f1">
+  <link rel="stylesheet" href="{{ config.extra.base_path }}/style.css">
+  <link rel="icon" type="image/svg+xml" href="{{ config.extra.base_path }}/icon.svg">
+  {% block head %}{% endblock head %}
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="header"><a class="brand" href="{{ config.extra.base_path }}/"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>how-far<span class="version">0.1</span></a>
+<nav aria-label="Main navigation"><a href="{{ config.extra.base_path }}/getting-started/">Get started</a><a href="{{ config.extra.base_path }}/integration/">Guide</a><a href="https://docs.rs/how-far/0.1.0/how_far/">API</a><a href="https://github.com/imazen/how-far">GitHub ↗</a></nav></header>
+{% block content %}{% endblock content %}
+<footer><a class="brand" href="{{ config.extra.base_path }}/">how-far</a><p>Rust 1.88+ · MIT or Apache-2.0 · <a href="https://github.com/imazen/how-far">Source & contributions</a></p></footer>
+{% block scripts %}{% endblock scripts %}
+</body></html>

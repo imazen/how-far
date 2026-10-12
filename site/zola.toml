@@ -1,0 +1,10 @@
+base_url = "https://imazen.github.io/how-far/"
+title = "how-far"
+description = "Progress and cooperative cancellation that follow your Rust functions."
+compile_sass = false
+[markdown]
+insert_anchor_links = "heading"
+[markdown.highlighting]
+theme = "github-light"
+[extra]
+base_path = "/how-far"
