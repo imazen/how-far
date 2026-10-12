@@ -23,6 +23,10 @@ msrv:
 build-cost:
     python3 dev/bench-how-far-build.py --runs 3
 
+# Compare optional APIs with the default crates without relaxing default budgets.
+feature-cost:
+    python3 dev/bench-how-far-build.py --runs 3 --feature-audit
+
 # Local library gates; also exercise individual no-default-feature packages.
 check:
     cargo fmt -p how-far -p how-far-along -p how-far-really -p how-far-example-codec -p how-far-example-pipeline -p how-far-example-app -- --check

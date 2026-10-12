@@ -24,6 +24,8 @@ from pathlib import Path
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--runs", type=int, default=3, help="perf samples per measurement")
+parser.add_argument("--feature-audit", action="store_true",
+                    help="also measure optional APIs separately; default budgets still apply")
 parser.add_argument("--ir-budget", type=int, default=120, help="IR lines per call site")
 parser.add_argument("--along-budget", type=int, nargs=2, default=[22_000, 35_000],
                     metavar=("TRACKER", "DIAGNOSTICS"), help="tracker and diagnostics IR lines")
@@ -83,7 +85,14 @@ PROBES = {
 PROFILES = {"check": ["check"], "debug": ["build"], "release": ["build", "--release"]}
 # how-far-along feature sets, each built in its own workspace so cargo does
 # not unify their features.
-ALONG = {"std": "how-far-along", "diagnostics": "how-far-really"}
+ALONG = {"std": ("how-far-along", []), "diagnostics": ("how-far-really", [])}
+if args.feature_audit:
+    ALONG.update({
+        "core-adapters": ("how-far", ["adapters"]),
+        "core-checked": ("how-far", ["checked"]),
+        "smooth": ("how-far-along", ["smooth"]),
+        "stage-suggestions": ("how-far-really", ["stage-suggestions"]),
+    })
 
 
 def perf_instructions(argv, cwd):
@@ -106,12 +115,12 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
     (tmp / "Cargo.toml").write_text(
         "[workspace]\nresolver = \"3\"\nmembers = [" + ", ".join(f'"{n}"' for n in PROBES) + "]\n")
     env = dict(os.environ, CARGO_TARGET_DIR=str(tmp / "target"), CARGO_INCREMENTAL="0")
-    for name, crate in ALONG.items():
+    for name, (crate, features) in ALONG.items():
         (tmp / "along" / name / "src").mkdir(parents=True)
         (tmp / "along" / name / "src" / "lib.rs").write_text("")
         (tmp / "along" / name / "Cargo.toml").write_text(
             f'[package]\nname = "along-{name}"\nversion = "0.0.0"\nedition = "2024"\n[dependencies]\n'
-            f'{crate} = {{ path = "{root}/crates/{crate}" }}\n[workspace]\n')
+            f'{crate} = {{ path = "{root}/crates/{crate}", features = {json.dumps(features)} }}\n[workspace]\n')
     commands = {}
     for profile, cargo_args in PROFILES.items():
         for cwd, tag in [(tmp, ""), *((tmp / "along" / name, f"/{name}") for name in ALONG)]:
@@ -122,7 +131,7 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
                     argv = shlex.split(line.split("Running `", 1)[1].rstrip("`"))
                     argv = [a for a in argv if not a.startswith("--json") and a != "--error-format=json"]
                     crate = argv[argv.index("--crate-name") + 1]
-                    if tag and crate == ALONG[tag[1:]].replace("-", "_"):
+                    if tag and crate == ALONG[tag[1:]][0].replace("-", "_"):
                         commands[profile, "observation" + tag] = argv
                     elif not tag:  # how-far as a library sees it: enough without std.
                         commands[profile, crate] = argv
@@ -147,8 +156,14 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
     assert per_site <= args.ir_budget, "Stages::run instantiates too much code per call site"
     for name, budget in zip(ALONG, args.along_budget):
         lines = ir_lines(f"observation/{name}", only_how_far=False)
-        print(f"{ALONG[name]} IR, {name}: {lines} lines (budget {budget})")
+        print(f"{ALONG[name][0]} IR, {name}: {lines} lines (budget {budget})")
         assert lines <= budget, f"how-far-along with {name} compiles to more code than its budget"
+
+    if args.feature_audit:
+        print(f"how-far own IR, default: {ir_lines('how_far', only_how_far=False)} lines")
+        for name in list(ALONG)[2:]:
+            lines = ir_lines(f"observation/{name}", only_how_far=False)
+            print(f"{ALONG[name][0]} own IR, {name}: {lines} lines (audit, not a default-budget gate)")
 
     if shutil.which("perf") is None:
         print("perf not found; skipping instruction counts")
@@ -176,3 +191,7 @@ with tempfile.TemporaryDirectory(prefix="how-far-build-") as tmp:
     }
     for label, value in rows.items():
         print(f"{label:44} " + " ".join(f"{value(p):7.1f}" for p in PROFILES))
+    if args.feature_audit:
+        for name in list(ALONG)[2:]:
+            print(f"{name:44} " + " ".join(
+                f"{m[p, 'observation/' + name]:7.1f}" for p in PROFILES))
