@@ -109,8 +109,8 @@ pub enum PlanError {
     UnfinishedChildren,
     /// Every declared stage has already run.
     NoMoreStages,
-    /// A named stage does not match the next declaration in a sequence.
-    StageNameMismatch,
+    /// A stage reservation does not match the next declaration in this sequence.
+    StageMismatch,
 }
 
 impl fmt::Display for PlanError {
@@ -125,7 +125,7 @@ impl fmt::Display for PlanError {
             Self::Finished => "the phase already has an outcome",
             Self::UnfinishedChildren => "every child must finish before its parent",
             Self::NoMoreStages => "every declared stage has already run",
-            Self::StageNameMismatch => "stage name does not match the next declaration",
+            Self::StageMismatch => "stage reservation does not match the next declaration",
         })
     }
 }

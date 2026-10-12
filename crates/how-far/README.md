@@ -10,12 +10,12 @@ required.
 use how_far::{prelude::*, PhaseSpec, Stages, StopReason, Total};
 
 fn encode(rows: &[u8], pulse: &dyn Pulse) -> Result<(), StopReason> {
-    let mut stages = Stages::new(pulse, &[
+    let (mut stages, [encode, _metadata]) = Stages::define(pulse, [
         PhaseSpec::new("encode", 1, Total::Exact(rows.len() as u64)).units("rows"),
         PhaseSpec::new("optional metadata", 1, Total::Exact(1)),
     ]);
-    let encode_phase = stages.begin("encode");
-    encode_rows(rows, &encode_phase).finish_phase(encode_phase)?;
+    let encode = stages.begin(encode);
+    encode_rows(rows, &encode).finish_phase(encode)?;
     stages.complete(Ok(()))
 }
 
@@ -37,12 +37,23 @@ An application calls such a library with `&how_far::NoPulse`, a tracker from
 `&StopOnly::new(token)` (or `StopOnly::borrowed(&token)`): every nested phase
 checks that token, and progress costs nothing.
 
-`Stages::begin("name")` gives a handle for the next declared stage. Pass it to
-an ordinary function and hand the result back with `.finish_phase(stage)?`.
-Names must match in order; a mismatch is diagnosed and runs untracked without
-consuming the next declaration. A failed or cancelled handoff makes remaining
-stages `NotRun`, even when `?` returns immediately. Call `stages.complete(Ok(value))`
-on success to mark unused optional stages `Skipped`.
+`Stages::define` returns the plan and an array of `StageKey` reservations.
+Bind them to variables; `stages.begin(key)` gives the next active handle.
+Pass it to an ordinary function and hand the result back with
+`.finish_phase(stage)?`. Keys are specific to one plan and checked in order;
+a mismatch records `StageMismatch` and runs untracked without consuming the
+next declaration. Labels are only for display. A failed or cancelled handoff
+makes remaining stages `NotRun`, even when `?` returns immediately. Call
+`stages.complete(Ok(value))` on success to mark unused optional stages `Skipped`.
+
+Within an active stage, `stage.fork([specs...])` starts independent branch
+handles. Each takes its own data and uses the same result handoff. Schedule
+and join them with your threading or async library, then hand the combined
+result to the enclosing stage. Branch failure does not stop siblings by itself.
+For runtime-sized repeated work, `Stages::new` plus `begin_next()` uses the
+same handles without named reservations. See the
+[fork–join example](../../docs/how-far-integration.md#forkjoin-with-different-operations).
+
 `Phases` runs independently selected phases, allowing a library to catch a failed
 attempt and run a fallback. Neither helper introduces a planning error into the
 work's result. Plans rejected by an observer retain cancellation/checkpoint

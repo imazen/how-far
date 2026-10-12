@@ -1,6 +1,6 @@
 //! Best-effort observation of sequential work; errors belong to the work.
 use crate::{AsStopReason, Child, Complete, Execution, Outcome, PhaseSpec, PlanError, Pulse};
-use alloc::{boxed::Box, collections::VecDeque};
+use alloc::{collections::VecDeque, sync::Arc};
 
 /// Sequential work returning the library's ordinary `Result<T, E>`.
 ///
@@ -16,7 +16,7 @@ use alloc::{boxed::Box, collections::VecDeque};
 #[must_use = "run stages and hand over the final result; Drop records abandonment"]
 pub struct Stages<'a> {
     parent: &'a dyn Pulse,
-    pending: VecDeque<(Child<'a>, Box<str>)>,
+    pending: VecDeque<(Child<'a>, Option<StageKey>)>,
     state: State,
 }
 enum State {
@@ -30,13 +30,10 @@ impl<'a> Stages<'a> {
     /// fallback children and cannot fail the work.
     #[track_caller]
     pub fn new(parent: &'a dyn Pulse, parts: &[PhaseSpec<'_>]) -> Self {
-        // Keep names with their pending owners so the plan retains its compact
-        // stack footprint. Labels may come from temporary specifications.
         let pending = parent
             .plan(Execution::Sequence, parts)
             .into_iter()
-            .zip(parts)
-            .map(|(child, part)| (child, Box::from(part.name)))
+            .map(|child| (child, None))
             .collect();
         Self {
             parent,
@@ -45,25 +42,70 @@ impl<'a> Stages<'a> {
         }
     }
 
-    /// Begin the next declared stage, checking its name before attaching work.
+    /// Declare a sequence and bind its reservations to variables.
     ///
-    /// Pass the returned [`Stage`] to the operation, then hand its result to
-    /// [`crate::ResultExt::finish_phase`] **before** applying `?`. A failed or
-    /// cancelled handoff marks every remaining stage [`Outcome::NotRun`].
-    /// Complete the plan with its final result to resolve optional work.
+    /// Destructure the returned array, then pass each key to [`Stages::begin`]
+    /// in declaration order. Keys belong to this particular plan, even when
+    /// another plan has identical specifications. Moving the plan is allowed.
+    /// Dropping a key does not abandon its pending stage: the plan retains
+    /// completion authority until the stage begins or the plan completes.
     ///
-    /// Names are checked in sequence, not searched. A mismatched name records
-    /// [`PlanError::StageNameMismatch`] and returns a cancellation-only stage
-    /// without consuming the next declaration. Repeated names are allowed in
-    /// a sequence. After failure or exhaustion, work also retains cancellation
-    /// through an untracked stage and the protocol issue is recorded.
-    ///
-    /// Only one stage can borrow the plan at a time. Join workers before
-    /// handing over their stage's result. Dropping an unfinished stage records
-    /// abandonment and prevents the remaining sequence from earning progress.
+    /// Labels are for observers only; beginning a stage never compares strings.
+    /// One shared identity allocation belongs to each nonempty definition.
     #[track_caller]
-    pub fn begin(&mut self, name: &str) -> Stage<'_, 'a> {
-        let child = self.begin_child(Some(name));
+    pub fn define<const N: usize>(
+        parent: &'a dyn Pulse,
+        parts: [PhaseSpec<'_>; N],
+    ) -> (Self, [StageKey; N]) {
+        let mut stages = Self::new(parent, &parts);
+        // Arc keeps identity stable across moves and prevents address reuse
+        // while a stale key survives. No global counter or mutable state.
+        let identity = (N != 0).then(|| Arc::new(()));
+        let keys = core::array::from_fn(|index| {
+            let key = StageKey {
+                identity: Arc::clone(identity.as_ref().expect("nonempty definition")),
+                index,
+            };
+            stages.pending[index].1 = Some(key.clone());
+            key
+        });
+        (stages, keys)
+    }
+
+    /// Begin the next stage using its reservation from [`Stages::define`].
+    ///
+    /// Hand the operation's result to [`crate::ResultExt::finish_phase`]
+    /// **before** applying `?`. Failed or cancelled handoffs immediately mark
+    /// remaining stages [`Outcome::NotRun`]. Complete the plan with its final
+    /// result to resolve untouched optional work.
+    ///
+    /// A key from another plan, out of order, or already used records
+    /// [`PlanError::StageMismatch`] and returns a cancellation-only stage
+    /// without consuming the next declaration. After failure or exhaustion,
+    /// work also retains cancellation and the protocol issue is recorded.
+    ///
+    /// Only one active stage can borrow the plan. Join workers before handing
+    /// over that stage's result. Dropping it unfinished records abandonment
+    /// and prevents the remaining sequence from earning progress.
+    #[track_caller]
+    pub fn begin(&mut self, key: StageKey) -> Stage<'_, 'a> {
+        self.begin_stage(Some(&key))
+    }
+
+    /// Begin the next stage in a runtime-sized sequence.
+    ///
+    /// Use with [`Stages::new`] when a loop repeats the same operation over a
+    /// slice. The handle and result handoff are the same as [`Stages::begin`],
+    /// but no key is checked. Exhaustion records [`PlanError::NoMoreStages`]
+    /// and returns a cancellation-only stage.
+    #[track_caller]
+    pub fn begin_next(&mut self) -> Stage<'_, 'a> {
+        self.begin_stage(None)
+    }
+
+    #[track_caller]
+    fn begin_stage(&mut self, key: Option<&StageKey>) -> Stage<'_, 'a> {
+        let child = self.begin_child(key);
         Stage {
             stages: Some(self),
             child,
@@ -108,8 +150,8 @@ impl<'a> Stages<'a> {
     }
 
     #[track_caller]
-    fn begin_child(&mut self, name: Option<&str>) -> Child<'a> {
-        let child = self.next(name);
+    fn begin_child(&mut self, key: Option<&StageKey>) -> Child<'a> {
+        let child = self.next(key);
         if !matches!(self.state, State::Stopped) {
             self.state = State::Running;
         }
@@ -139,7 +181,7 @@ impl<'a> Stages<'a> {
     }
 
     #[track_caller]
-    fn next(&mut self, name: Option<&str>) -> Child<'a> {
+    fn next(&mut self, key: Option<&StageKey>) -> Child<'a> {
         if matches!(self.state, State::Running) {
             // A prior closure panicked, and the caller caught it.
             self.state = State::Stopped;
@@ -148,8 +190,12 @@ impl<'a> Stages<'a> {
         if matches!(self.state, State::Stopped) {
             self.parent.record_issue(PlanError::Finished);
         } else if let Some((_, expected)) = self.pending.front() {
-            if name.is_some_and(|name| name != &**expected) {
-                self.parent.record_issue(PlanError::StageNameMismatch);
+            if key.is_some_and(|key| {
+                !expected
+                    .as_ref()
+                    .is_some_and(|expected| expected.matches(key))
+            }) {
+                self.parent.record_issue(PlanError::StageMismatch);
             } else {
                 return self.pending.pop_front().expect("checked pending stage").0;
             }
@@ -175,6 +221,22 @@ impl Complete for Stages<'_> {
     }
 }
 
+/// A reservation identifying one stage in one [`Stages::define`] plan.
+///
+/// Pass it to [`Stages::begin`]. It carries no progress or completion rights;
+/// dropping it leaves the stage pending. A clone identifies the same stage,
+/// not another execution: attempting to begin it twice is diagnosed.
+#[derive(Clone, Debug)]
+pub struct StageKey {
+    identity: Arc<()>,
+    index: usize,
+}
+impl StageKey {
+    fn matches(&self, other: &Self) -> bool {
+        self.index == other.index && Arc::ptr_eq(&self.identity, &other.identity)
+    }
+}
+
 /// One active sequential stage, borrowing its plan until result handoff.
 ///
 /// Pass `&stage` as the operation's [`Pulse`], then use
@@ -187,12 +249,12 @@ impl Complete for Stages<'_> {
 ///
 /// ```compile_fail,E0499
 /// use how_far::{prelude::*, NoPulse, PhaseSpec, Stages, Total};
-/// let mut stages = Stages::new(&NoPulse, &[
+/// let (mut stages, [a, b]) = Stages::define(&NoPulse, [
 ///     PhaseSpec::new("a", 1, Total::Unknown),
 ///     PhaseSpec::new("b", 1, Total::Unknown),
 /// ]);
-/// let first = stages.begin("a");
-/// let second = stages.begin("b");
+/// let first = stages.begin(a);
+/// let second = stages.begin(b);
 /// first.complete(Ok::<_, how_far::StopReason>(())).unwrap();
 /// ```
 #[must_use = "hand over the stage result before ?; dropping it records Abandoned"]
@@ -201,6 +263,50 @@ pub struct Stage<'s, 'p> {
     child: Child<'p>,
 }
 impl Stage<'_, '_> {
+    /// Start independently owned branches within this stage.
+    ///
+    /// This declares [`Execution::ForkJoin`] and starts each branch; it does
+    /// not schedule work. Move the handles into scoped threads, Rayon work,
+    /// or borrowed async futures. Each branch can use different data and
+    /// return a different type, or declare a nested [`Stages`] sequence.
+    ///
+    /// Hand each result to its branch, join **all** workers, then hand the
+    /// combined result to this stage. A failed branch does not automatically
+    /// cancel its siblings. Every returned branch is active: dropping one
+    /// unfinished records [`Outcome::Abandoned`], not optional skipped work.
+    /// Rejected plans retain cancellation in every branch and record an issue.
+    ///
+    /// The parent cannot be completed while a branch still borrows it:
+    ///
+    /// ```compile_fail,E0505
+    /// use how_far::{prelude::*, NoPulse, PhaseSpec, Stages, Total, Outcome};
+    /// let (mut stages, [work]) = Stages::define(&NoPulse, [
+    ///     PhaseSpec::new("work", 1, Total::Unknown),
+    /// ]);
+    /// let work = stages.begin(work);
+    /// let [branch] = work.fork([PhaseSpec::new("branch", 1, Total::Unknown)]);
+    /// work.complete_as(Outcome::Succeeded);
+    /// branch.complete_as(Outcome::Succeeded);
+    /// ```
+    #[track_caller]
+    pub fn fork<const N: usize>(&self, parts: [PhaseSpec<'_>; N]) -> [Child<'_>; N] {
+        let mut children = self.fork_children(&parts).into_iter();
+        // Best-effort planning guarantees exactly one handle per declaration,
+        // including when a sink violates its split contract.
+        core::array::from_fn(|_| children.next().expect("one child per declaration"))
+    }
+
+    #[track_caller]
+    fn fork_children(&self, parts: &[PhaseSpec<'_>]) -> alloc::vec::Vec<Child<'_>> {
+        let children = self.child.plan(Execution::ForkJoin, parts);
+        for child in &children {
+            if let Err(error) = child.start() {
+                self.child.record_issue(error);
+            }
+        }
+        children
+    }
+
     fn close(&mut self, outcome: Outcome) {
         if let Some(stages) = self.stages.take() {
             let child = core::mem::replace(&mut self.child, Child::inert());
