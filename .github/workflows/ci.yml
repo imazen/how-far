@@ -33,7 +33,7 @@ jobs:
             rust: '1.88'
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust ${{ matrix.rust }}
         uses: dtolnay/rust-toolchain@master
@@ -43,7 +43,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Test
-        run: cargo test --workspace --all-features
+        run: |
+          cargo test --workspace --all-features --all-targets
+          cargo test --workspace --all-features --doc
 
       - name: Test (no default features)
         run: |
@@ -66,7 +68,7 @@ jobs:
             target: x86_64-apple-darwin
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -74,7 +76,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Test
-        run: cargo test --workspace --all-features
+        run: |
+          cargo test --workspace --all-features --all-targets
+          cargo test --workspace --all-features --doc
 
   # ==========================================================================
   # Cross-compiled 32-bit testing (i686 via QEMU)
@@ -83,7 +87,7 @@ jobs:
     name: Test i686
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -98,7 +102,9 @@ jobs:
           key: cross-i686
 
       - name: Test (i686/QEMU)
-        run: cross test --workspace --all-features --target i686-unknown-linux-gnu
+        run: |
+          cross test --workspace --all-features --all-targets --target i686-unknown-linux-gnu
+          cross test --workspace --all-features --doc --target i686-unknown-linux-gnu
 
   # ==========================================================================
   # no_std and WASM build verification
@@ -107,7 +113,7 @@ jobs:
     name: no_std / WASM
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -134,7 +140,7 @@ jobs:
     name: Feature powerset
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -147,9 +153,22 @@ jobs:
       - name: Check feature powerset
         run: cargo hack check --feature-powerset --no-dev-deps -p how-far -p how-far-along -p how-far-really
 
-  # No semver job yet: the crates have no published baseline. Add
-  # `cargo semver-checks -p how-far -p how-far-along -p how-far-really`
-  # after their first release.
+  release-check:
+    name: Package and API compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-semver-checks
+      # Before first publication, compare with the reviewed, merged API.
+      # Keep this baseline for 0.1; future releases also compare to crates.io.
+      - name: Review stable API compatibility
+        run: cargo semver-checks -p how-far -p how-far-along -p how-far-really --baseline-rev 7b88ef7b55a2253422e3728106aafd8437724328
+      - name: Verify all three publishable packages together
+        run: cargo publish --dry-run -p how-far -p how-far-along -p how-far-really
 
   # ==========================================================================
   # Miri — tracker state under concurrent publication
@@ -158,7 +177,7 @@ jobs:
     name: Miri
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust nightly + Miri
         uses: dtolnay/rust-toolchain@nightly
@@ -182,7 +201,7 @@ jobs:
     name: Diagnostics, build cost, checkpoint harness
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: '1.88'
@@ -198,11 +217,11 @@ jobs:
     name: WASM host boundaries
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '26'
       - run: cargo build --manifest-path dev/how-far-wasm/Cargo.toml --target wasm32-unknown-unknown
@@ -212,7 +231,7 @@ jobs:
     name: Browser Rayon / UI (Chromium + WebKit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -225,7 +244,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: dev/how-far-browser
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '26'
           cache: npm
@@ -248,7 +267,7 @@ jobs:
     name: Deny
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@cargo-deny
@@ -266,7 +285,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -285,7 +304,7 @@ jobs:
     name: Docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -301,7 +320,7 @@ jobs:
     name: Coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -317,7 +336,7 @@ jobs:
         run: cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
 
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: lcov.info
           fail_ci_if_error: false

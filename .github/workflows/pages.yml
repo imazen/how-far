@@ -1,0 +1,59 @@
+name: Guide
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: guide-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    permissions:
+      contents: read
+      pages: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install Zola 0.22.1
+        run: |
+          curl --fail --location --output "$RUNNER_TEMP/zola.tar.gz" https://github.com/getzola/zola/releases/download/v0.22.1/zola-v0.22.1-x86_64-unknown-linux-gnu.tar.gz
+          echo '0ca09aa40376aaa9ddfb512ff9ad963262ef95edb0d0f2d5ec6961b6f5cf22ef  '"$RUNNER_TEMP/zola.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/zola.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Build tested guides and tracker traces
+        run: python3 dev/build-site.py
+      - name: Check interactions and mobile layout
+        working-directory: site
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm test
+      - uses: actions/configure-pages@v6
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+      - uses: actions/upload-pages-artifact@v5
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          path: target/site-preview/how-far
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v5
+        id: deployment
