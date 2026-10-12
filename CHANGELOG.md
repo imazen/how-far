@@ -4,38 +4,57 @@
 
 ### QUEUED BREAKING CHANGES
 
-- Before first publication: remove the tracker `callback` feature name; `FnPulse` and `Checkpoint` are always available. Remove `callback` from downstream feature lists (`4c69b481`).
+None.
 
-- Before first publication: remove core `adapters` / `checked` and tracker `adapters` / `json` feature names; their APIs are unconditional. Rename diagnostics `stage-suggestions` to `experimental-stage-suggestions`. Remove the old names from downstream manifests (`be613b9f`).
+## how-far
 
-### Fixed
+### [0.1.0] - 2026-10-12
 
-- Isolate callback dispatch in `FnPulse` policies so enabling `callback` adds no callback slot or branch to ordinary `PulseTree` nodes (`ea85c915`).
+#### Added
 
-- Synchronize the host cancellation fixture so dropped polling attempts and worker completion cannot hide its requested stop.
+- `no_std + alloc` cancellation, counting and weighted phases through `&dyn Pulse`, with ordinary application results and caller-owned completion (`be8cd93`).
+- Variable-bound stages via `Stages::define` and `begin`, result handoff via `finish_phase`, and independent fork–join handles via `Stage::fork`; runtime-sized sequences use `begin_next` (`7b88ef7b`).
+- Cancellation adapters, shared worker views, optional closure helpers and checked planning APIs are available without Cargo feature gates (`be613b9f`).
+- Standalone adoption examples, registry dependency setup and a link to the public guide (`13d787d7`, `38ebee79`).
 
-### Changed
+## how-far-along
 
-- Lead adoption docs with a complete library/caller example, variable-bound stages and tested custom error classification; pin setup instructions to the merged API (`7b88ef7b`).
+### [0.1.0] - 2026-10-12
 
-- Stop forwarding `how-far-along/std` to the compatibility feature `enough/std`; both configurations already enable `enough/alloc`.
+#### Added
 
-- Test the library integration guide as doctests and update the real zenpng fixture for caller-owned completion and padded input (`04398811`, `fa1b4d2c`, `7e1fba51`).
+- Tracking trees, allocation-free summaries, snapshots, pollers and schema-version-2 JSON (`be8cd93`).
+- Always-available checkpoint callbacks through `FnPulse`, isolated from ordinary trees' state and checkpoint dispatch (`ea85c915`, `4c69b481`).
+- Opt-in `smooth` display interpolation, preserving observed outcomes and revised totals (`845d9d1`, `94948ac`).
+- `std` by default, with `no_std + alloc` tracking through the application's critical-section provider; no deprecated `enough/std` forwarding (`be8cd93`, `bd7ab30`).
+- A standalone application quickstart and links to the public guide (`13d787d7`, `38ebee79`).
 
-- Smoothing keeps the learned pace for count updates with no new time interval, without retaining an undo buffer.
-- Resolve the stage-suggestion harness from sibling checkouts through relative paths.
-- Simplified stage grouping and rendering, and derive site intervals from existing check/report timestamps.
-- Simplified unit-pace sample traversal without changing report sampling or late-report accounting.
-- Requires `enough` and `almost-enough` 0.4.5 from crates.io, the first releases with `enough::AsStopReason`, instead of a git commit of enough's main
+## how-far-really
 
-### Added
+### [0.1.0] - 2026-10-12
 
-- `Stages::define` binds stage reservations to variables; `begin(key)` returns an active `Stage` for ordinary calls with `.finish_phase(stage)?`. `Stage::fork` starts independent branch handles for caller-scheduled fork–join work. Failed stage handoffs resolve pending sequential work immediately. `StageMismatch` diagnoses wrong-plan or out-of-order keys. Runtime-sized sequences use `begin_next`; closure helpers remain available (`699c683b`; initial direct handles: `0e901969`).
+#### Added
 
-- `how-far` (Rust 1.88, `no_std + alloc`, depends only on `enough`): the `&dyn Pulse` interface libraries accept for cancellation, completed units and weighted nested phases. `Stages`/`Phases` return the library's own `Result`; `complete_with` keeps an early `?` inside the handoff; `share()` gives owned work the full interface without completion rights; `StopOnly` turns a cancellation token into a pulse. `WithStop` and `TryStages` are always available.
-- `how-far-along` (Rust 1.88): tracking trees, allocation-free summaries, snapshots, pollers, JSON schema 2, and checkpoint callbacks (`FnPulse`).
-- `how-far-along`: optional `smooth` feature with `ProgressSmoother::display_fraction`, which smooths a polled tree's fraction between reports for displays, at each running stage's own pace, bounded by one latest change and half the remaining work ahead when advancing the estimate; a previous displayed high-water mark can remain above a smaller new bound; finished stages and revised totals show the snapshot's record.
-- `how-far-really` (Rust 1.88, `std`): opt-in profiling and diagnostics of checkpoint cadence, callbacks, protocol misuse and stage weights.
-- `how-far-really`: `Kind::UnevenPace` flags a task whose slowest quarter of reported units took at least `Options::uneven_pace_ratio` (default 4) times as long as its fastest, with advice to split the phase into stages or report a unit that tracks cost; spans record `Stats::unit_pace` (`UnitPace`, four quarter durations) whenever report timing is on, from at most 32 sampled reports.
-- `how-far-really`: `Kind::SuggestedStages`, behind the `experimental-stage-suggestions` feature, proposes stages for a leaf phase or stop-only code whose checkpoints ran in separate stretches, as `PhaseSpec` sample code named by file and line and weighted by each stretch's share of time; outer loops spanning several stretches are left out, and the time after the last retained timed check or report is a stage of its own. `SiteStats` records `time` (intervals ending at the location) and `active` (first and last call).
-- Example codec, pipeline and app crates with scenario tests across threads, Rayon and Tokio; browser and Wasm fixtures; a CI guard on compiled code size. Measurements: [2026-10-06 record](benchmarks/how-far-2026-10-06.md).
+- Opt-in profiling and diagnostics of checkpoint cadence, callbacks, protocol misuse and stage weights, with bounded trace retention (`be8cd93`).
+- `UnevenPace` findings and quarter-duration samples for work whose unit costs vary (`72b29a9`).
+- Experimental stage suggestions behind `experimental-stage-suggestions`, plus source-site time and activity intervals; shared types retain their normal compatibility guarantees (`742aa83`, `2973961`, `be613b9f`).
+- Development-dependency setup, a complete diagnostic example and links to the public guide (`13d787d7`, `38ebee79`).
+
+## Workspace
+
+### [0.1.0] - 2026-10-12
+
+#### Added
+
+- All-target and doctest CI across the platform matrix, package dry runs, API compatibility checks and tested GitHub Pages deployment (`43efef4e`).
+- Public guide with highlighted examples and six interactive tracker scenarios: export, cancellation, fork–join, skipping, smoothing and diagnostics (`c1959b7f`, `8bea729f`).
+- Cross-crate codec, pipeline and application examples across threads, Rayon and Tokio; browser/Wasm fixtures and a compiled-size CI guard ([measurement record](benchmarks/how-far-2026-10-06.md), `be8cd93`).
+- Tested integration-guide examples and a real PNG encoder fixture checking output parity, cancellation, caller-owned completion and padded input (`04398811`, `fa1b4d2c`, `7e1fba51`).
+
+#### Fixed
+
+- Include both license texts in each published package (`e29bcc46`).
+
+#### Changed
+
+- Require Rust 1.88 and registry `enough` / `almost-enough` 0.4.5 (`d174270`).
