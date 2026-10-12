@@ -24,7 +24,8 @@ sequential work. Both convert `StopReason` into their own errors for `?`, and
 implement `how_far::AsStopReason` for classification. The outer error delegates
 classification to its codec error without losing it.
 
-The pipeline uses `stages.begin("name")`, ordinary operation calls, and
+The pipeline binds reservations from `Stages::define` to variables, then uses
+`stages.begin(key)`, ordinary operation calls, and
 `.finish_phase(stage)?` before error propagation. A stage error resolves the
 remaining sequence immediately; final `stages.complete(Ok(value))` discharges
 optional work on success. Closure helpers remain available for convenience.

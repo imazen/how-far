@@ -156,9 +156,9 @@ fn copy(input: &[u8], pulse: &dyn Pulse) -> Result<Vec<u8>, Error> {
 /// them with a coder that owns its stop policy.
 pub fn encode(image: &Image, pulse: &dyn Pulse) -> Result<Vec<u8>, Error> {
     let tiles = image.tiles() as u64;
-    let mut stages = Stages::new(
+    let (mut stages, [analyze_key, transform_key, entropy_key]) = Stages::define(
         pulse,
-        &[
+        [
             PhaseSpec::new("analyze", 1, Total::Exact(image.height as u64)).units("rows"),
             PhaseSpec::new("transform", 6, Total::Exact(tiles))
                 .units("tiles")
@@ -166,11 +166,11 @@ pub fn encode(image: &Image, pulse: &dyn Pulse) -> Result<Vec<u8>, Error> {
             PhaseSpec::new("entropy", 3, Total::Exact(tiles)).units("tiles"),
         ],
     );
-    let analyze_phase = stages.begin("analyze");
+    let analyze_phase = stages.begin(analyze_key);
     analyze(image, &analyze_phase).finish_phase(analyze_phase)?;
-    let transform_phase = stages.begin("transform");
+    let transform_phase = stages.begin(transform_key);
     let transformed = transform(image, &transform_phase).finish_phase(transform_phase)?;
-    let entropy_phase = stages.begin("entropy");
+    let entropy_phase = stages.begin(entropy_key);
     let result = match entropy_phase.share() {
         // A coder context owns its view when the caller permits owned sharing.
         Ok(owned) => EntropyCoder::new(owned).code(&transformed),
