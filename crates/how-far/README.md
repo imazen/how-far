@@ -64,11 +64,12 @@ cancellation error. Counters do not synchronize application data.
 completion rights. Join workers before completing their original owner.
 Unsupported sharing is an explicit `NotShareable` error, never a silent loss of
 cancellation. `Pulse::split`, `start`, `set_total`,
-and `Child::finish` are the explicitly fallible administration layer. The optional
-`checked` feature adds `TryStages` and its `RunError` wrapper.
+and `Child::finish` are the explicitly fallible administration layer.
+`TryStages` and its `RunError` wrapper provide an explicitly fallible runner.
+All core APIs are available without Cargo features.
 
-The optional `adapters` feature adds `WithStop`, preserving an additional stop
-policy through children and owned views. `WithStop::borrowed(pulse, stop)`
+`WithStop` preserves an additional stop policy through children and owned views.
+`WithStop::borrowed(pulse, stop)`
 combines a caller's pulse with a local `&dyn Stop`; `replacing_borrowed` uses only
 the new policy (bypassing the inner check and its callbacks). Borrowed policies
 work with scoped workers; owned `new`/`replacing` policies can use `share()`. Tracking and lazy callbacks live in

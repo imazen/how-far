@@ -52,7 +52,7 @@ misleading mismatch when the conversion is missing; a missing `AsStopReason` is
 reported as such. Foreign error wrappers use the `_classified` variants. No
 planning error ever enters a library's `Result`: best-effort planning records a
 rejected plan and supplies untracked children that still check the stop. The
-optional `checked` feature keeps `TryStages`, for callers who want planning
+explicitly fallible `TryStages` remains available for callers who want planning
 failures in their return type.
 
 `split` hands out child owners; libraries never finish their borrowed input.
@@ -171,28 +171,31 @@ phase's weight.
 
 ## Compile-time seams
 
-The core depends only on `enough`. Its `adapters` feature adds `WithStop`
-(combined or replacing, owned or borrowed stop policies); `checked` adds the
-strict runner. Neither changes protocol behaviour or layout, and erased
-implementations avoid compiling adapter machinery per wrapped type. Tracker
-defaults are `std` and `json`; `callback` and `adapters` are additive. Without
-defaults the tracker needs only alloc, native atomics and the critical-section
-provider. Diagnostics is a separate std-only crate. An encoder can feature-gate
-both its how-far dependency and every reporting site, as the zenpng fixture
-does.
+The core depends only on `enough` and has no Cargo features. `WithStop`
+(combined or replacing, owned or borrowed stop policies) and the strict
+`TryStages` runner are always available. These helpers add no fields to ordinary
+pulses, and erased implementations avoid compiling adapter machinery per wrapped
+type. The tracker always provides snapshot JSON through `core::fmt::Write`,
+without a serializer dependency.
 
-The tracker `std` feature selects its mutex backend; it does not enable
-`enough/std`, because both configurations already use `enough/alloc`.
-`callback` also adds a dispatcher slot to each pulse state and a conditional
-dispatch at checkpoints. The other optional features add APIs or analysis:
-`adapters` and `checked` add no dependencies, `json` uses `core::fmt` without
-serde, and `smooth` owns its state separately from the tree. Diagnostics'
-`stage-suggestions` gate adds grouping during analysis, using timestamps
-already collected without the feature. These gates can therefore be assessed
-as compile-cost and API choices separately from the tracker backend and
-checkpoint overhead. The default build-cost guard excludes `smooth` and
-`stage-suggestions`; making either unconditional needs a new measurement
-against the existing budgets.
+The tracker's only default feature is `std`, which selects its mutex backend.
+It does not enable `enough/std`: both configurations already use `enough/alloc`.
+Without defaults the tracker needs alloc, native atomics and a critical-section
+provider. `callback` adds a dispatcher slot to each pulse state and conditional
+checkpoint dispatch. The stable `smooth` feature owns its state separately from
+the tree and stays opt-in to preserve the default compile-cost budget.
+
+Diagnostics is a separate std-only crate. Its opt-in
+`experimental-stage-suggestions` feature groups timestamps already collected
+without the feature. Grouping rules and generated suggestions are experimental
+and may change in patch releases; consumers relying on them should pin an exact
+version or revision. Shared public types retain their stable compatibility
+contract. Naming a feature experimental is not enough by itself: this exception
+applies only to the documented experimental functionality.
+
+An encoder can feature-gate both its how-far dependency and every reporting
+site, as the zenpng fixture does. The [feature review and measurements](../benchmarks/features-2026-10-12.md)
+record why smoothing and stage grouping remain outside the default IR budgets.
 
 Extensible enums and observation records are non-exhaustive. Diagnostic
 messages are not machine identifiers, and timing thresholds are not correctness

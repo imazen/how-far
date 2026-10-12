@@ -40,12 +40,12 @@ section and do not promise wait-free access. Counting never locks metadata.
 Unknown totals and overflow stay visible; fractions can regress after revisions.
 Success discharges a parent's obligation without rewriting failed attempts.
 
-The default features are `std,json`. With defaults disabled, tracking uses
+The only default feature is `std`. Snapshot JSON and `WithStop` are always available. With defaults disabled, tracking uses
 `alloc`, pointer atomics, and the application's critical-section provider. That
 provider must exclude every participating core. Native-width counters saturate
 and expose overflow on targets without 64-bit atomics. The `callback` feature
 adds `FnPulse` and lazy `Checkpoint`; it does not require std or 64-bit atomics.
-`adapters` forwards the core cancellation-adapter feature. `smooth` adds
+The stable, opt-in `smooth` feature adds
 `ProgressSmoother`, which smooths a display's fraction between reports at each
 running stage's own pace; it needs neither std nor a clock of its own.
 

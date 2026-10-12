@@ -1,4 +1,3 @@
-#![cfg(feature = "adapters")]
 use almost_enough::Stopper;
 use how_far::{
     Complete, Execution, PhaseSpec, PlanError, Pulse, Stop, StopReason, Total, Unstoppable,

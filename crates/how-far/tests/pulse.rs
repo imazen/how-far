@@ -1,4 +1,3 @@
-#![cfg(feature = "checked")]
 //! The `Pulse` contract with the no-op implementation.
 
 use how_far::{

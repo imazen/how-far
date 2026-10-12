@@ -4,7 +4,7 @@ This isolated application tests `how-far` with pinned bindings,
 `wasm-bindgen 0.2.123` and `wasm-bindgen-rayon 1.3` (`no-bundler`), a
 worker-owned Rayon pool, and shared Wasm memory. It is excluded from ordinary
 workspace builds, so none of its browser dependencies reach either library.
-The fixture uses `how-far-along` with `std,json` and explicitly depends on
+The fixture uses `how-far-along` with `std` (snapshot JSON is always available) and explicitly depends on
 `how-far-really` for profiling.
 
 ```sh

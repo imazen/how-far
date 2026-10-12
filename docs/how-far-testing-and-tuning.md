@@ -176,7 +176,7 @@ already recorded (a worker preempted on the way) still counts in its quarter.
 Each span records, per source location, the time of the intervals that ended
 there and when it was first and last called (`SiteStats::time` and
 `SiteStats::active`; reports count only with report timing on). With the
-`stage-suggestions` feature, a `SuggestedStages` finding appears when a leaf
+`experimental-stage-suggestions` feature, a `SuggestedStages` finding appears when a leaf
 phase, or code measured without a progress tree such as a codec's `Stop`
 checks, ran its checkpoints in separate stretches. Locations are taken in order
 of how long they were active, shortest first. Timing changes can change their

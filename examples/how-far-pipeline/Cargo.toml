@@ -7,11 +7,9 @@ publish = false
 description = "A library that calls the example codec inside its own how-far stages"
 
 [features]
-default = ["std", "adapters"]
+default = ["std"]
 # Parallel batch processing on Rayon.
 std = ["how-far-example-codec/std", "dep:rayon"]
-# A library-local stop source combined with the caller's pulse.
-adapters = ["how-far/adapters"]
 
 [dependencies]
 how-far.workspace = true

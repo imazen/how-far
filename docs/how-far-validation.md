@@ -46,8 +46,8 @@ and feature-gated grouping are covered by `crates/how-far-really/tests/diagnosti
 
 ## Build and runtime cost
 
-`dev/bench-how-far-build.py`, run in CI on Rust 1.88, permits only the additive
-core `adapters` and `checked` features, only the `enough` production dependency,
+`dev/bench-how-far-build.py`, run in CI on Rust 1.88, permits no core Cargo
+features, only the `enough` production dependency,
 and no build script. It caps `Stages::run` at 120 unoptimized LLVM IR lines per
 call site, tracker code at 22,000 and the `how-far-really` diagnostics crate at
 35,000 with default features. Optional smoothing and stage suggestions are

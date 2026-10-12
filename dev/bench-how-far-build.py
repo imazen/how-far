@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Guard the build cost of how-far and how-far-along.
 
-Fails the run if how-far gains features beyond adapters/checked, a build script or a dependency other
+Fails the run if how-far gains any features, a build script or a dependency other
 than `enough`; if one `Stages::run` call site adds more than --ir-budget
 lines of how-far's unoptimized LLVM IR to the caller's crate; or if
 how-far-along and how-far-really's own unoptimized IR, grows past its budget.
@@ -38,7 +38,7 @@ root = Path(__file__).resolve().parent.parent
 meta = json.loads(subprocess.check_output(
     ["cargo", "metadata", "--format-version=1", "--no-deps"], cwd=root))
 how_far = next(p for p in meta["packages"] if p["name"] == "how-far")
-assert how_far["features"] == {"adapters": [], "checked": []}, "only additive adapters and the checked runner are allowed in core"
+assert how_far["features"] == {}, "core exposes its full API without Cargo features"
 assert [(d["name"], d["kind"]) for d in how_far["dependencies"] if d["kind"] != "dev"] \
     == [("enough", None)], "how-far may depend only on the lightweight enough interface"
 assert all("custom-build" not in t["kind"] for t in how_far["targets"]), \
@@ -91,10 +91,8 @@ PROFILES = {"check": ["check"], "debug": ["build"], "release": ["build", "--rele
 ALONG = {"std": ("how-far-along", []), "diagnostics": ("how-far-really", [])}
 if args.feature_audit:
     ALONG.update({
-        "core-adapters": ("how-far", ["adapters"]),
-        "core-checked": ("how-far", ["checked"]),
         "smooth": ("how-far-along", ["smooth"]),
-        "stage-suggestions": ("how-far-really", ["stage-suggestions"]),
+        "stage-suggestions": ("how-far-really", ["experimental-stage-suggestions"]),
     })
 
 

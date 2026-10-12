@@ -6,7 +6,7 @@ use alloc::collections::VecDeque;
 ///
 /// Implement [`AsStopReason`] for your error to recognize cancellation.
 /// `From<StopReason>` supports `?` at checks; no planning-error conversion is
-/// required. For explicitly fallible planning use `TryStages` (the `checked` feature).
+/// required. For explicitly fallible planning use [`crate::TryStages`].
 ///
 /// Pass the final result to `complete` (or `ResultExt::finish_phase`) to resolve
 /// untouched stages. Drop alone records abandonment. Recovery belongs inside a

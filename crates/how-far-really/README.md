@@ -6,9 +6,16 @@ Rust 1.88 and `std` are required. No executor or background thread is started.
 
 For library tests and benchmarks, put this crate in `[dev-dependencies]`.
 A diagnostics executable uses it in `[dependencies]`; an application can also
-opt into runtime profiling. The `stage-suggestions` feature keeps candidate
+opt into runtime profiling. The `experimental-stage-suggestions` feature keeps candidate
 stage grouping here as reusable tooling. Its weights describe one measured run
 and need comparison across representative inputs before adoption.
+
+`experimental-stage-suggestions` is excluded from the stable compatibility
+contract. Its grouping rules and generated suggestions may change in patch
+releases; tooling that depends on those results should pin an exact version or
+git revision. The feature does not weaken the compatibility contract of shared
+types such as `Trace`, `Options`, `Finding`, or `SiteStats`. Stable features and
+APIs elsewhere keep their normal compatibility guarantees.
 
 ```rust
 use how_far::{prelude::*, StopReason, Total, Unstoppable};

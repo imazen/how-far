@@ -33,7 +33,7 @@ zenzop = ["dep:zenzop"]
 
 [dependencies]
 how-far = { path = "../../crates/how-far" }
-how-far-really = { path = "../../crates/how-far-really", features = ["stage-suggestions"] }
+how-far-really = { path = "../../crates/how-far-really", features = ["experimental-stage-suggestions"] }
 enough = "0.4.5"
 almost-enough = "0.4.5"
 imgref = "1.11"

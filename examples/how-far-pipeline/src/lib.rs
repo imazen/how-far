@@ -96,7 +96,6 @@ pub fn convert(
 
 /// Keep the caller's stage and cancellation, adding a library-local stop source.
 /// Both are borrowed, so a stack-local token or caller-supplied `&dyn Stop` works.
-#[cfg(feature = "adapters")]
 pub fn convert_with_stop(
     input: &[u8],
     pulse: &dyn Pulse,

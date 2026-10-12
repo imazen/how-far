@@ -245,7 +245,6 @@ fn root_abandonment_racing_with_administration_freezes_after_the_administrator_e
         assert!(observer.try_summary().is_some());
     }
 }
-#[cfg(feature = "adapters")]
 #[test]
 fn added_stop_policies_survive_splitting_and_owned_nesting() {
     let stop = almost_enough::Stopper::new();

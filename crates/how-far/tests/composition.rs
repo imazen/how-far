@@ -1,4 +1,3 @@
-#![cfg(feature = "checked")]
 //! Libraries built on `TryStages` calling each other, checked with a recording
 //! `Pulse` written against the public trait alone.
 //!

@@ -43,7 +43,6 @@ fn cold_path_values_have_known_sizes() {
     assert!(size_of::<Total>() <= 2 * size_of::<u64>());
     assert!(size_of::<Execution>() <= 2 * WORD);
     assert!(size_of::<Stages<'static>>() <= 7 * WORD);
-    #[cfg(feature = "checked")]
     {
         assert!(size_of::<how_far::TryStages<'static>>() <= 5 * WORD);
         assert!(size_of::<how_far::RunError<StopReason>>() <= 2);

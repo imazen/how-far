@@ -135,7 +135,7 @@ pub enum Kind {
     /// A phase, or code measured without a progress tree, ran its
     /// checkpoints in separate stretches, one source location's after
     /// another's: candidate stages, with weights from their shares of time.
-    /// Reported only with the `stage-suggestions` feature.
+    /// Reported only with the `experimental-stage-suggestions` feature.
     SuggestedStages,
     /// Dropped spans, saturated counts, or clock trouble limit the advice.
     IncompleteEvidence,
@@ -728,7 +728,7 @@ impl Trace {
                         ), "Progress, and display smoothing between reports, assume a phase's units cost about the same. If the change comes from the work itself (a different step), split the phase into stages where it changes, weighted by these times. If it comes from the input, report a unit that tracks the cost, such as bytes or pixels rather than items. The first quarter runs from the span's start: sequence entry for a sequential stage, otherwise its first check or report."));
                 }
             }
-            #[cfg(feature = "stage-suggestions")]
+            #[cfg(feature = "experimental-stage-suggestions")]
             {
                 if is_leaf_or_bare(self, span)
                     && span.elapsed() >= options.minimum_stage_wall
@@ -1098,7 +1098,7 @@ fn stage_weight_finding(trace: &Trace, parent: &Snapshot, options: &Options) -> 
 }
 
 /// A span of a leaf phase, or one with no phase at all (stop-only code).
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 fn is_leaf_or_bare(trace: &Trace, span: &SpanRecord) -> bool {
     match (span.node, &trace.progress) {
         (Some(node), Some(root)) => find_node(root, node).is_some_and(|p| p.children.is_empty()),
@@ -1107,7 +1107,7 @@ fn is_leaf_or_bare(trace: &Trace, span: &SpanRecord) -> bool {
 }
 
 /// One stretch of a span's run: source locations whose timed calls overlap.
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 #[derive(Clone, Copy)]
 struct Stretch {
     start: Duration,
@@ -1120,13 +1120,13 @@ struct Stretch {
 
 /// Stages to declare in one span, from when each of its source locations
 /// was active and how much time each one ended.
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 fn suggested_stages(span: &SpanRecord, options: &Options) -> Option<Finding> {
     let stages = group_stages(span, options)?;
     Some(render_stages(span, &stages))
 }
 
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 struct GroupedStages {
     stretches: Vec<Stretch>,
     total: Duration,
@@ -1135,7 +1135,7 @@ struct GroupedStages {
 }
 
 /// Group overlapping source locations and fold stretches too small to calibrate.
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 fn group_stages(span: &SpanRecord, options: &Options) -> Option<GroupedStages> {
     let sites = &span.stats.sites;
     // Shortest window first, so the order depends on when each location ran,
@@ -1241,7 +1241,7 @@ fn group_stages(span: &SpanRecord, options: &Options) -> Option<GroupedStages> {
 }
 
 /// Render a grouping as evidence and a candidate Stages declaration.
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 fn render_stages(span: &SpanRecord, stages: &GroupedStages) -> Finding {
     use core::fmt::Write as _;
     let GroupedStages {
@@ -1315,7 +1315,7 @@ fn render_stages(span: &SpanRecord, stages: &GroupedStages) -> Finding {
 }
 
 /// Add `next` to `stretch`, which ran before, around or alongside it.
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 fn absorb(stretch: &mut Stretch, next: Stretch, sites: &[crate::profile::SiteStats]) {
     stretch.start = stretch.start.min(next.start);
     stretch.end = stretch.end.max(next.end);

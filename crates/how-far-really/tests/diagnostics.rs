@@ -944,7 +944,7 @@ fn an_evenly_paced_phase_gets_no_uneven_pace_advice() {
     assert!(trace.spans[0].stats.unit_pace.is_none());
 }
 
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 #[test]
 fn checkpoints_in_separate_stretches_suggest_stages_weighted_by_time() {
     let clock = ManualClock::default();
@@ -983,7 +983,7 @@ fn checkpoints_in_separate_stretches_suggest_stages_weighted_by_time() {
     assert_eq!((site.time, site.active), (ms(10), Some((ms(1), ms(10)))));
 }
 
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 #[test]
 fn checkpoints_that_alternate_in_one_loop_suggest_no_stages() {
     let clock = ManualClock::default();
@@ -1004,23 +1004,23 @@ fn checkpoints_that_alternate_in_one_loop_suggest_no_stages() {
 }
 
 /// Check once, returning the line of that check.
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 fn check_outer(stop: &dyn Stop) -> u32 {
     stop.check().unwrap();
     line!() - 1
 }
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 fn check_a(stop: &dyn Stop) -> u32 {
     stop.check().unwrap();
     line!() - 1
 }
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 fn check_b(stop: &dyn Stop) -> u32 {
     stop.check().unwrap();
     line!() - 1
 }
 
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 #[test]
 fn an_outer_loop_around_stages_is_left_out_of_them() {
     let clock = ManualClock::default();
@@ -1065,7 +1065,7 @@ fn an_outer_loop_around_stages_is_left_out_of_them() {
     assert!(!code.contains(&format!("{file}:{}\"", lines[0])), "{code}");
 }
 
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 #[test]
 fn time_after_the_last_check_is_a_stage_of_its_own() {
     let clock = ManualClock::default();
@@ -1095,7 +1095,7 @@ fn time_after_the_last_check_is_a_stage_of_its_own() {
     )), "{code}");
 }
 
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 #[test]
 fn a_main_loop_around_short_steps_is_one_stage() {
     let clock = ManualClock::default();
@@ -1119,7 +1119,7 @@ fn a_main_loop_around_short_steps_is_one_stage() {
     assert!(find(&profiler.snapshot(), Kind::SuggestedStages).is_none());
 }
 
-#[cfg(feature = "stage-suggestions")]
+#[cfg(feature = "experimental-stage-suggestions")]
 #[test]
 fn a_spanning_location_lighter_than_its_stretches_is_left_out_whatever_its_size() {
     let clock = ManualClock::default();

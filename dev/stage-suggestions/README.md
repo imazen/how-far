@@ -2,7 +2,7 @@
 
 This development executable collects stage suggestions for codec and metric
 operations. Grouping remains in `how-far-really`, enabled through its
-`stage-suggestions` feature.
+`experimental-stage-suggestions` feature.
 
 The manifest expects this checkout layout (the parent directory can be anywhere):
 

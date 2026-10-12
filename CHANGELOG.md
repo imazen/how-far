@@ -4,7 +4,7 @@
 
 ### QUEUED BREAKING CHANGES
 
-<!-- Breaks that will ship together in one leading-digit bump. None queued. -->
+- Before first publication: remove core `adapters` / `checked` and tracker `adapters` / `json` feature names; their APIs are unconditional. Rename diagnostics `stage-suggestions` to `experimental-stage-suggestions`. Remove the old names from downstream manifests.
 
 ### Fixed
 
@@ -24,10 +24,10 @@
 
 ### Added
 
-- `how-far` (Rust 1.88, `no_std + alloc`, depends only on `enough`): the `&dyn Pulse` interface libraries accept for cancellation, completed units and weighted nested phases. `Stages`/`Phases` return the library's own `Result`; `complete_with` keeps an early `?` inside the handoff; `share()` gives owned work the full interface without completion rights; `StopOnly` turns a cancellation token into a pulse. Optional `adapters` (`WithStop`) and `checked` (`TryStages`).
+- `how-far` (Rust 1.88, `no_std + alloc`, depends only on `enough`): the `&dyn Pulse` interface libraries accept for cancellation, completed units and weighted nested phases. `Stages`/`Phases` return the library's own `Result`; `complete_with` keeps an early `?` inside the handoff; `share()` gives owned work the full interface without completion rights; `StopOnly` turns a cancellation token into a pulse. `WithStop` and `TryStages` are always available.
 - `how-far-along` (Rust 1.88): tracking trees, allocation-free summaries, snapshots, pollers, JSON schema 2, and optional checkpoint callbacks (`FnPulse`).
 - `how-far-along`: optional `smooth` feature with `ProgressSmoother::display_fraction`, which smooths a polled tree's fraction between reports for displays, at each running stage's own pace, bounded by one latest change and half the remaining work ahead when advancing the estimate; a previous displayed high-water mark can remain above a smaller new bound; finished stages and revised totals show the snapshot's record.
 - `how-far-really` (Rust 1.88, `std`): opt-in profiling and diagnostics of checkpoint cadence, callbacks, protocol misuse and stage weights.
 - `how-far-really`: `Kind::UnevenPace` flags a task whose slowest quarter of reported units took at least `Options::uneven_pace_ratio` (default 4) times as long as its fastest, with advice to split the phase into stages or report a unit that tracks cost; spans record `Stats::unit_pace` (`UnitPace`, four quarter durations) whenever report timing is on, from at most 32 sampled reports.
-- `how-far-really`: `Kind::SuggestedStages`, behind the `stage-suggestions` feature, proposes stages for a leaf phase or stop-only code whose checkpoints ran in separate stretches, as `PhaseSpec` sample code named by file and line and weighted by each stretch's share of time; outer loops spanning several stretches are left out, and the time after the last retained timed check or report is a stage of its own. `SiteStats` records `time` (intervals ending at the location) and `active` (first and last call).
+- `how-far-really`: `Kind::SuggestedStages`, behind the `experimental-stage-suggestions` feature, proposes stages for a leaf phase or stop-only code whose checkpoints ran in separate stretches, as `PhaseSpec` sample code named by file and line and weighted by each stretch's share of time; outer loops spanning several stretches are left out, and the time after the last retained timed check or report is a stage of its own. `SiteStats` records `time` (intervals ending at the location) and `active` (first and last call).
 - Example codec, pipeline and app crates with scenario tests across threads, Rayon and Tokio; browser and Wasm fixtures; a CI guard on compiled code size. Measurements: [2026-10-06 record](benchmarks/how-far-2026-10-06.md).

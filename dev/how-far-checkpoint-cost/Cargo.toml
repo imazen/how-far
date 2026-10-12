@@ -10,7 +10,7 @@ almost-enough = { version = "0.4.5", features = ["poll-meter"] }
 enough = "0.4.5"
 enough-tokio = "0.5.1"
 tokio-util = { version = "0.7.19", default-features = false }
-how-far = { path = "../../crates/how-far", features = ["adapters"] }
+how-far = { path = "../../crates/how-far" }
 how-far-along = { path = "../../crates/how-far-along", features = ["callback"] }
 how-far-really = { path = "../../crates/how-far-really" }
 

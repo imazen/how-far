@@ -6,3 +6,7 @@
   complete every worker before any observed its polling callback's stop.
   ARM CI exposed the race. The fixture now serializes polling and checks the
   stop after dispatch; the cancellation assertions remain unchanged.
+
+- Fixed in the feature-cost audit: compiler command replays overwrote dependency
+  metadata in shared output directories and could fail to resolve the tracker.
+  Replays now write separately from Cargo-built dependency artifacts.

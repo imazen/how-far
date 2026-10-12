@@ -10,7 +10,6 @@ mod pulse;
 #[cfg(feature = "callback")]
 mod callback;
 pub mod ext;
-#[cfg(feature = "json")]
 mod json;
 #[cfg(feature = "callback")]
 pub use callback::{Checkpoint, FnPulse};
@@ -19,8 +18,6 @@ pub mod poll;
 mod smooth;
 mod sync;
 mod tree;
-
-#[cfg(feature = "adapters")]
 pub use how_far::WithStop;
 // Application-facing protocol names only; implementor/checked helpers remain in how_far.
 use how_far::ChildPulse;

@@ -11,12 +11,10 @@ categories = ["concurrency", "no-std"]
 
 [features]
 # Features are additive: they add items and fields and never remove or retype any.
-default = ["std", "json"]
+default = ["std"]
 # Selects our mutex backend; enough only needs alloc in either configuration.
 std = []
 callback = []
-adapters = ["how-far/adapters"]
-json = []
 # `ProgressSmoother`: smooths a display's fraction between reports.
 smooth = []
 
@@ -26,7 +24,6 @@ how-far.workspace = true
 critical-section = "1.2"
 
 [dev-dependencies]
-how-far = { workspace = true, features = ["checked"] }
 critical-section = { version = "1.2", features = ["std"] }
 almost-enough.workspace = true
 rayon = "1.12.0"

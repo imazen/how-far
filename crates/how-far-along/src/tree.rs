@@ -752,13 +752,11 @@ impl Snapshot {
     /// Counts and weights are decimal strings, so 64-bit values survive
     /// JavaScript. Later versions may add keys; readers should ignore keys they
     /// do not know.
-    #[cfg(feature = "json")]
     pub fn write_json(&self, out: &mut impl fmt::Write) -> fmt::Result {
         out.write_str("{\"schema_version\":2,\"root\":")?;
         self.write_node_json(out)?;
         out.write_char('}')
     }
-    #[cfg(feature = "json")]
     fn write_node_json(&self, out: &mut impl fmt::Write) -> fmt::Result {
         use crate::json::{outcome_name, quote};
         write!(out, "{{\"id\":{},\"parent\":", self.id)?;
@@ -879,8 +877,6 @@ impl Snapshot {
         matches!(self.total, Total::Exact(n) if self.completed > n) || self.overflowed
     }
 }
-
-#[cfg(feature = "json")]
 fn write_total(out: &mut impl fmt::Write, total: Total) -> fmt::Result {
     match total {
         Total::Unknown => out.write_str("{\"kind\":\"Unknown\"}"),

@@ -22,7 +22,7 @@ For a library, the tracker and diagnostic tools normally belong in
 `dev-dependencies`. An application displaying progress needs `how-far-along`
 in its normal dependencies. Put `how-far-really` in normal dependencies only
 when the application intentionally collects diagnostics at runtime. Stage
-grouping stays in that crate behind `stage-suggestions`; it is tuning advice
+grouping stays in that crate behind `experimental-stage-suggestions`; it is tuning advice
 from observed runs, not a library dependency or an automatically applied plan.
 If the library also uses `enough`, use the same Cargo source as how-far
 (currently crates.io, version `0.4.5`). Two copies from different sources have
@@ -64,8 +64,7 @@ Keep the library's error type. Implement `From<StopReason>` to use `?`, and
 `AsStopReason` to classify cancellation, delegating through nested errors.
 For an error type you cannot implement that trait for, use the classified
 helpers. `Stages` keeps rejected observations out of the work's result and
-retains cancellation through untracked children. Use `TryStages` (feature
-`checked`) only when planning errors are part of the intended public contract.
+retains cancellation through untracked children. Use `TryStages` only when planning errors are part of the intended public contract.
 
 Pacing trades checkpoint frequency for overhead. `Paced::finish` checks the
 last partial batch; Drop only reports it. Report work after doing it. Use
