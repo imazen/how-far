@@ -27,6 +27,10 @@ build-cost:
 feature-cost:
     python3 dev/bench-how-far-build.py --runs 5 --feature-audit --wall-time
 
+# Inspect checkpoint dispatch on the same toolchain as the compile-cost guard.
+checkpoint-asm features="std" function="<how_far_along::pulse::PulseTree as enough::Stop>::check":
+    cargo +1.88 asm -p how-far-along --lib --no-default-features --features "{{features}}" --no-color --simplify "{{function}}"
+
 # Local library gates; also exercise individual no-default-feature packages.
 check:
     cargo fmt -p how-far -p how-far-along -p how-far-really -p how-far-example-codec -p how-far-example-pipeline -p how-far-example-app -- --check

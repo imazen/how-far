@@ -78,3 +78,6 @@ and shared-view checkpoints, checks both phase identity and root observation,
 and verifies finishing suppresses subsequent callbacks. Existing stop latching,
 reentrant observation, abandonment and checkpoint-only dispatch tests remain
 unchanged.
+
+The [cargo asm follow-up](callback-asm-2026-10-12.md) verifies ordinary checkpoint
+assembly with the feature off/on and shows the separate callback dispatch path.
