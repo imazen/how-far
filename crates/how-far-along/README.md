@@ -12,7 +12,8 @@ let result = {
         PhaseSpec::new("work", 1, Total::Exact(2)),
         PhaseSpec::new("optional", 1, Total::Exact(1)),
     ]);
-    let result = stages.run(|phase| phase.step(2));
+    let phase = stages.begin("work");
+    let result = phase.step(2).finish_phase(phase);
     result.finish_phase(stages)
 };
 result.finish_phase(tree)?;

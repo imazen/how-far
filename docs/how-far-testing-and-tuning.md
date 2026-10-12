@@ -106,14 +106,12 @@ library error represents its chosen response to `NotShareable`, rather than
 requiring every library error to convert all planning errors:
 
 ```rust,ignore
-stages.run_classified(Error::is_stop, |stage| {
-    let mut encoder = Encoder::new(config).with_stop(stage.share()?);
-    for frame in frames {
-        encoder.encode(frame)?;
-        stage.step(1)?;
-    }
-    Ok(())
-})?;
+let stage = stages.begin("encode");
+let result = match stage.share() {
+    Ok(owned) => encoder.with_stop(owned).encode(input),
+    Err(error) => Err(error.into()), // handle unsupported ownership explicitly
+};
+let output = stage.complete_classified(result, Error::is_stop)?;
 ```
 
 If the encoder's `Stop` trait comes from a different version of `enough`, a

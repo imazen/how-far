@@ -11,11 +11,11 @@ The how-far crates are not published yet. Pin them to the same revision:
 
 ```toml
 [dependencies]
-how-far = { git = "https://github.com/imazen/how-far", rev = "4c69b48148f67d2e75839d614831d695683581d3" }
+how-far = { git = "https://github.com/imazen/how-far", rev = "0e901969c7ee856dcc1c1c90500fca72b6a1458b" }
 
 [dev-dependencies]
-how-far-along = { git = "https://github.com/imazen/how-far", rev = "4c69b48148f67d2e75839d614831d695683581d3", features = ["smooth"] }
-how-far-really = { git = "https://github.com/imazen/how-far", rev = "4c69b48148f67d2e75839d614831d695683581d3" }
+how-far-along = { git = "https://github.com/imazen/how-far", rev = "0e901969c7ee856dcc1c1c90500fca72b6a1458b", features = ["smooth"] }
+how-far-really = { git = "https://github.com/imazen/how-far", rev = "0e901969c7ee856dcc1c1c90500fca72b6a1458b" }
 ```
 
 For a library, the tracker and diagnostic tools normally belong in
@@ -30,35 +30,58 @@ different `Stop` and `StopReason` identities.
 
 ## Library code: close what you own
 
-Use `Stages::complete_with` around a sequence containing `?`. Each `run` owns
-and completes its child; the enclosing helper completes unused children from
-the body's result. It leaves the borrowed input pulse for its caller to finish.
+Begin named stages and call ordinary functions with their handles. Hand each
+result to `.finish_phase(stage)` before `?`: a failure immediately marks the
+remaining sequence `NotRun`. On success, `stages.complete(Ok(value))` resolves
+unused optional stages. The borrowed input pulse remains its caller's to finish.
 
 ```rust
 use how_far::{prelude::*, PhaseSpec, Stages, StopReason, Total};
 
 fn copy(input: &[u8], pulse: &dyn Pulse) -> Result<Vec<u8>, StopReason> {
-    Stages::new(pulse, &[
+    let mut stages = Stages::new(pulse, &[
         PhaseSpec::new("copy", 4, Total::Exact(input.len() as u64)).units("bytes"),
         PhaseSpec::new("finalize", 1, Total::Exact(1)),
-    ]).complete_with(|stages| {
-        let output = stages.run(|stage| {
-            stage.check()?;
-            let mut output = Vec::with_capacity(input.len());
-            let mut paced = stage.paced(64);
-            for &byte in input {
-                output.push(byte);
-                paced.step(1)?;
-            }
-            paced.finish()?;
-            Ok::<_, StopReason>(output)
-        })?;
-        stages.run(|stage| stage.step(1))?;
-        Ok(output)
-    })
+    ]);
+    let copy_phase = stages.begin("copy");
+    let output = copy_bytes(input, &copy_phase).finish_phase(copy_phase)?;
+    let finalize_phase = stages.begin("finalize");
+    finalize_phase.step(1).finish_phase(finalize_phase)?;
+    stages.complete(Ok(output))
+}
+
+fn copy_bytes(input: &[u8], pulse: &dyn Pulse) -> Result<Vec<u8>, StopReason> {
+    pulse.check()?;
+    let mut output = Vec::with_capacity(input.len());
+    let mut paced = pulse.paced(64);
+    for &byte in input {
+        output.push(byte);
+        paced.step(1)?;
+    }
+    paced.finish()?;
+    Ok(output)
 }
 assert_eq!(copy(&[1, 2], &how_far::NoPulse), Ok(vec![1, 2]));
 ```
+
+Different stages may borrow different inputs and return different types. Write
+those calls in order; iterate only when applying an operation to repeated data.
+`begin` checks the next declared name rather than searching or scheduling work.
+Use `skip()` to discharge an optional stage before beginning a later one. A
+mismatched name records `StageNameMismatch`, preserves cancellation, and leaves
+the next declaration pending. Repeated names are allowed in a sequence.
+
+The same handle can span an async call: use
+`operation(&stage).await.finish_phase(stage)?`. Dropping a suspended operation
+abandons its active stage; Drop cannot infer a cancellation result.
+
+An active `Stage` borrows the plan until completion. Its `share()` supports
+owned workers, but they must join before the handoff. A dropped active stage
+records `Abandoned` and leaves the remaining sequence `NotRun`. Neither Drop
+nor a bare `?` can classify an error that never reaches a result handoff.
+For substantial inline fallible work, use a normal helper function so its
+result can be handed over. `run` and `complete_with` remain optional closure
+helpers, including when a closure is more convenient for a short local body.
 
 Keep the library's error type. Implement `From<StopReason>` to use `?`, and
 `AsStopReason` to classify cancellation, delegating through nested errors.
@@ -194,6 +217,6 @@ encoder emits existing magetypes deprecation warnings with the resolved
 is a separate dated experiment, not a current integration PR.
 
 The main ergonomic cost left for ordinary libraries is explicit result handoff
-and error classification. The prelude supplies the extension traits, and
-`complete_with` keeps early returns inside the handoff. Tests should still catch
+and error classification. The prelude supplies the extension traits; the direct
+pattern records each operation's result before `?`. Tests should still catch
 forgotten completion: neither `?` nor Drop can infer a returned result.

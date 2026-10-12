@@ -47,6 +47,9 @@ and feature-gated grouping are covered by `crates/how-far-really/tests/diagnosti
 
 ## Build and runtime cost
 
+[The named-stage measurements](../benchmarks/named-stages-2026-10-12.md) compare
+direct handoffs with the retained closure runner and describe the IR metric.
+
 [The callback default change](../benchmarks/callback-default-2026-10-12.md) records
 the measured cost and assembly verification for unconditional callbacks.
 
