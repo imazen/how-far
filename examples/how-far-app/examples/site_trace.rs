@@ -21,7 +21,7 @@ impl Trace {
             "{{\"title\":{title:?},\"detail\":{detail:?},\"code\":{code:?},\"frame\":{}}}",
             self.frames.len()
         ));
-        self.frame(observer, 180);
+        self.frame(observer, 0);
     }
     fn frame(&mut self, observer: &Observer, delay_ms: u64) {
         self.time_ms += delay_ms;
@@ -103,7 +103,7 @@ fn export(cancel: bool) -> String {
         }
         Ok::<_, StopReason>(()).finish_phase(stage).unwrap();
         trace.event(&observer, "All stages finished", "The bar is full, but the job is still Running. Progress is an observation; only the owner's result finishes the job.", "stages.complete(Ok(encoded))");
-        trace.frame(&observer, 500);
+        trace.frame(&observer, 0);
         Ok(())
     };
     let result = stages.complete(result);
@@ -158,7 +158,7 @@ fn fork() -> String {
     }
     Ok::<_, StopReason>(()).finish_phase(pixels).unwrap();
     trace.event(&observer, "Join both results", "Wait for both workers before combining their results. Finishing the children does not finish their parent.", "let histogram = pixels_task.join();\nlet profile = metadata_task.join();");
-    trace.frame(&observer, 350);
+    trace.frame(&observer, 0);
     Ok::<_, StopReason>(()).finish_phase(stage).unwrap();
     trace.event(
         &observer,
@@ -205,7 +205,7 @@ fn skipping() -> String {
     Ok::<_, StopReason>(()).finish_phase(stage).unwrap();
     stages.skip();
     trace.event(&observer, "Skip the optional watermark", "Skipped means intentionally unnecessary. It resolves this obligation without pretending any watermark work ran.", "if !options.watermark { stages.skip(); }");
-    trace.frame(&observer, 650);
+    trace.frame(&observer, 0);
     let stage = stages.begin(encode);
     trace.event(&observer, "Continue with the next operation", "The next named handle still works. Skipped is different from NotRun after cancellation or failure.", "let stage = stages.begin(encode);\nencode_tiles(&image, &stage).finish_phase(stage)?;");
     for _ in 0..64 {

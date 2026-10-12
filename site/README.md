@@ -22,3 +22,7 @@ examples, and stops on manual controls. Reduced-motion preferences disable it.
 To preview, serve `target/site-preview` with a static HTTP server on port 3035
 and open `/how-far/`. The site is static: no analytics, account or external font
 service is required. A failed trace load leaves the written guides available.
+
+The player reserves a stable panel height across scenarios and advances work
+without pauses for explanatory text. The step controls still expose every
+result handoff. Hatched segments mark the tracker's unresolved budget share.

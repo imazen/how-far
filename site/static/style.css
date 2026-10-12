@@ -687,3 +687,15 @@ footer .brand {
 #diagnostic p { margin-bottom: 10px; }
 @media (max-width: 760px) { .scenarios { gap: 4px; } .scenarios button { padding: 7px 9px; } .demo-toolbar { padding: 12px; } .event-panel h3 { min-height: 0; } .event-panel > p:not(.eyebrow):not(.quiet) { min-height: 70px; } .demo-badge { display: none; } }
 @media (prefers-reduced-motion: reduce) { .track span { transition: none; } }
+
+/* Reserve the same space across scenarios so playback never shifts the page. */
+.demo-body { min-height: 620px; }
+.tree-panel { min-height: 620px; }
+.track { position: relative; }
+.track .unknown-part { position: absolute; right: 0; top: 0; background: repeating-linear-gradient(135deg, #d3c8aa, #d3c8aa 3px, #eee9df 3px, #eee9df 6px); }
+@media (max-width: 760px) {
+  .event-panel h3 { min-height: 102px; }
+  .event-panel > p:not(.eyebrow):not(.quiet) { min-height: 140px; }
+  .event-panel pre { min-height: 120px; }
+  .tree-panel { min-height: 650px; }
+}

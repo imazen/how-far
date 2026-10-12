@@ -24,20 +24,24 @@ function treeNode(node) {
     heading.append(el('span', 'status-dot'), el('span', 'node-name', node.name), state);
     const track = el('div', 'track');
     const fill = el('span', '');
-    track.append(fill);
+    const unknown = el('span', 'unknown-part');
+    unknown.setAttribute('aria-hidden', 'true');
+    track.append(fill, unknown);
     const details = el('div', 'node-details');
     const children = el('div', 'node-children');
     box.append(heading, track, details);
     if (node.children.length) box.append(children);
-    view = { box, state, fill, details, children };
+    view = { box, state, fill, unknown, details, children };
     nodes.set(node.id, view);
   }
   const status = node.outcome || node.status;
   view.box.dataset.status = status;
   view.state.textContent = status;
   view.fill.style.width = `${Math.max(0, Math.min(1, node.fraction ?? 0)) * 100}%`;
+  view.unknown.style.width = `${node.unresolved_fraction * 100}%`;
+  view.unknown.title = `${percent(node.unresolved_fraction)} of the budget has an unknown total`;
   const total = node.total?.count;
-  view.details.textContent = `${percent(node.fraction)} · ${Number(node.completed).toLocaleString()}${total ? ' / ' + Number(total).toLocaleString() : ''} units${node.completion_inferred ? ' · inferred' : ''}`;
+  view.details.textContent = `${percent(node.fraction)} · ${Number(node.completed).toLocaleString()}${total ? ' / ' + Number(total).toLocaleString() : ''} units${node.unresolved_fraction ? ' · ' + percent(node.unresolved_fraction) + ' unresolved' : ''}${node.completion_inferred ? ' · inferred' : ''}`;
   for (const child of node.children) {
     const box = treeNode(child);
     if (box.parentElement !== view.children) view.children.append(box);
@@ -99,7 +103,7 @@ function choose(key, transition = true) {
   for (const button of buttons) button.setAttribute('aria-pressed', String(button.dataset.scenario === key));
   if (transition && !reducedMotion.matches) {
     for (const panel of [ $('event-panel'), $('tree-panel') ]) {
-      panel.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 280, easing: 'ease-out' });
+      panel.animate([{ opacity: 0.7 }, { opacity: 1 }], { duration: 160, easing: 'ease-out' });
     }
   }
   render();
@@ -110,7 +114,7 @@ function tick(now) {
   render();
   const finished = position === frames().length - 1;
   if (finished && !looping) return pause();
-  if (finished && elapsed > frames().at(-1).at_ms + 2400) {
+  if (finished && elapsed > frames().at(-1).at_ms + 1600) {
     choose(scenarios[(scenarios.indexOf(scenario) + 1) % scenarios.length]);
     origin = now;
   }

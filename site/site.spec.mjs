@@ -88,3 +88,29 @@ for (const width of [390, 1440]) {
     }
   });
 }
+
+
+test('scenario changes keep the layout still and work reports have no narration delays', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto('./');
+    let height;
+    for (const key of ['sequence', 'cancel', 'fork', 'skip', 'smooth', 'diagnostics']) {
+      await page.locator(`button[data-scenario="${key}"]`).click();
+      do {
+        const current = await page.locator('.demo').evaluate(node => node.getBoundingClientRect().height);
+        height ??= current;
+        expect(current).toBe(height);
+        if (!await page.getByRole('button', { name: 'Next event' }).isEnabled()) break;
+        await page.getByRole('button', { name: 'Next event' }).click();
+      } while (true);
+    }
+  }
+  const traces = await (await page.request.get('traces.json')).json();
+  for (const trace of Object.values(traces)) {
+    for (let index = 1; index < trace.frames.length; index++) {
+      expect(trace.frames[index].at_ms - trace.frames[index - 1].at_ms).toBeLessThanOrEqual(100);
+    }
+  }
+});
