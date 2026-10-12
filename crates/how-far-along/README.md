@@ -45,6 +45,9 @@ The only default feature is `std`. Snapshot JSON and `WithStop` are always avail
 provider must exclude every participating core. Native-width counters saturate
 and expose overflow on targets without 64-bit atomics. The `callback` feature
 adds `FnPulse` and lazy `Checkpoint`; it does not require std or 64-bit atomics.
+Callback state belongs only to callback-backed pulses. Enabling this feature
+does not add a callback field or dispatch branch to ordinary `PulseTree` nodes;
+the gate limits compile cost.
 The stable, opt-in `smooth` feature adds
 `ProgressSmoother`, which smooths a display's fraction between reports at each
 running stage's own pace; it needs neither std nor a clock of its own.

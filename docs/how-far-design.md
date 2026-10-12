@@ -181,8 +181,11 @@ without a serializer dependency.
 The tracker's only default feature is `std`, which selects its mutex backend.
 It does not enable `enough/std`: both configurations already use `enough/alloc`.
 Without defaults the tracker needs alloc, native atomics and a critical-section
-provider. `callback` adds a dispatcher slot to each pulse state and conditional
-checkpoint dispatch. The stable `smooth` feature owns its state separately from
+provider. `callback` compiles `FnPulse` and its dispatcher policy. Ordinary
+`PulseTree` owners, children and shared views keep their cancellation-only
+policy; enabling the feature adds no callback slot or dispatch branch to them.
+The build-cost guard compares their root checkpoint code with the feature off
+and on. The feature stays opt-in for compile cost. The stable `smooth` feature owns its state separately from
 the tree and stays opt-in to preserve the default compile-cost budget.
 
 Diagnostics is a separate std-only crate. Its opt-in

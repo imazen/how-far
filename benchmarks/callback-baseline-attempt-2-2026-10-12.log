@@ -1,0 +1,31 @@
+# Library and benchmark source: 4d27bf60fda84ca0fa4151837f39743dabf40834
+# Both runs were interrupted after the first group reported only four rounds.
+# Do not use these samples to claim a runtime improvement.
+run-heavy: mem-cap=16G (cgroup, hard) jobs=28/32 avail=52947MiB :: target/release/deps/overhead-557af8c872347d6c
+[zenbench] calibration: int=0.20ns/iter mem_bw=65.2GiB/s mem_lat=10.7ns
+[zenbench] timer resolution: 10ns, loop overhead: 0.40ns/iter, TSC: 3.300 ticks/ns (invariant)
+[zenbench] results → /home/lilith/tmp/zenbench/zenbench-1791785362-2e4023.txt
+
+═══════════════════════════════════════════════════════════════
+  zenbench  1791785362-2e4023
+  git: 4d27bf60fda84ca0fa4151837f39743dabf40834
+═══════════════════════════════════════════════════════════════
+
+  check_isolated  4 rounds × 97 calls ⚠ only 4 rounds
+                                  mean ±mad µs  95% CI vs base       checks/s
+  ├─ &dyn Pulse → NoPulse         10.4 ±0.2µs  [10.3–10.5]µs         963M
+  ├─ &dyn Pulse → tree(Unsto…     23.9 ±4.5µs  [+97.8%–+161.5%]      419M
+  ├─ &dyn Pulse → tree(Stopp…     23.4 ±2.2µs  [+107.3%–+144.9%]     427M
+  ├─ may_stop gate → tree(Un…      0.0 ±0.0µs  [-101.1%–-98.8%]     1394G [1] [2]
+  ╰─ impl Stop → Unstoppable       0.0 ±0.0µs  [-101.1%–-98.8%]     6167G [3] [4]
+
+  impl Stop → Unstoppable     ███████████████████████████████████ 6167 Gchecks/s
+  may_stop gate → tree(Un…    ████████ 1394 Gchecks/s
+  &dyn Pulse → NoPulse        █ 963 Mchecks/s
+  &dyn Pulse → tree(Stopp…    █ 427 Mchecks/s
+  &dyn Pulse → tree(Unsto…    █ 419 Mchecks/s
+  [1] drift r=-0.80 — later rounds faster
+  [2] CV=34%
+  [3] drift r=-0.80 — later rounds faster
+  [4] CV=40%
+run-heavy: done rc=143 151s | peak-RSS 0.03GiB | min-avail 52863MiB | peak-load 0.85

@@ -1,0 +1,81 @@
+# Library and benchmark source: 4d27bf60fda84ca0fa4151837f39743dabf40834
+# Both runs were interrupted after the first group reported only four rounds.
+# Do not use these samples to claim a runtime improvement.
+run-heavy: mem-cap=16G (cgroup, hard) jobs=28/32 avail=52875MiB :: cargo bench -p how-far-along --bench overhead --features callback -- --help
+[1m[92m   Compiling[0m proc-macro2 v1.0.107
+[1m[92m   Compiling[0m quote v1.0.47
+[1m[92m   Compiling[0m unicode-ident v1.0.26
+[1m[92m   Compiling[0m crossbeam-utils v0.8.23
+[1m[92m   Compiling[0m utf8parse v0.2.2
+[1m[92m   Compiling[0m rustix v1.1.5
+[1m[92m   Compiling[0m serde_core v1.0.229
+[1m[92m   Compiling[0m crossbeam-epoch v0.9.21
+[1m[92m   Compiling[0m zmij v1.0.23
+[1m[92m   Compiling[0m linux-raw-sys v0.12.1
+[1m[92m   Compiling[0m bitflags v2.13.2
+[1m[92m   Compiling[0m libc v0.2.190
+[1m[92m   Compiling[0m is_terminal_polyfill v1.70.2
+[1m[92m   Compiling[0m crossbeam-deque v0.8.8
+[1m[92m   Compiling[0m colorchoice v1.0.5
+[1m[92m   Compiling[0m anstyle-query v1.1.5
+[1m[92m   Compiling[0m anstyle v1.0.14
+[1m[92m   Compiling[0m clap_lex v1.1.1
+[1m[92m   Compiling[0m enough v0.4.5
+[1m[92m   Compiling[0m serde v1.0.229
+[1m[92m   Compiling[0m heck v0.5.0
+[1m[92m   Compiling[0m serde_json v1.0.151
+[1m[92m   Compiling[0m strsim v0.11.1
+[1m[92m   Compiling[0m rayon-core v1.13.0
+[1m[92m   Compiling[0m memchr v2.8.3
+[1m[92m   Compiling[0m itoa v1.0.18
+[1m[92m   Compiling[0m critical-section v1.2.0
+[1m[92m   Compiling[0m either v1.18.0
+[1m[92m   Compiling[0m anstyle-parse v1.0.0
+[1m[92m   Compiling[0m pin-project-lite v0.2.17
+[1m[92m   Compiling[0m how-far v0.1.0 (/home/lilith/work/how-far/crates/how-far)
+[1m[92m   Compiling[0m almost-enough v0.4.5
+[1m[92m   Compiling[0m tokio v1.53.2
+[1m[92m   Compiling[0m anstream v1.0.0
+[1m[92m   Compiling[0m how-far-along v0.1.0 (/home/lilith/work/how-far/crates/how-far-along)
+[1m[92m   Compiling[0m clap_builder v4.6.7
+[1m[92m   Compiling[0m syn v3.0.6
+[1m[92m   Compiling[0m sysinfo v0.36.1
+[1m[92m   Compiling[0m rayon v1.12.0
+[1m[92m   Compiling[0m fs4 v1.1.0
+[1m[92m   Compiling[0m terminal_size v0.4.4
+[1m[92m   Compiling[0m clap_derive v4.6.7
+[1m[92m   Compiling[0m serde_derive v1.0.229
+[1m[92m   Compiling[0m clap v4.6.7
+[1m[92m   Compiling[0m zenbench v0.1.9
+[1m[92m    Finished[0m `bench` profile [optimized] target(s) in 5.96s
+[1m[92m     Running[0m benches/overhead.rs (target/release/deps/overhead-557af8c872347d6c)
+[zenbench] calibration: int=0.20ns/iter mem_bw=82.1GiB/s mem_lat=10.8ns
+[zenbench] timer resolution: 10ns, loop overhead: 0.40ns/iter, TSC: 3.300 ticks/ns (invariant)
+[zenbench] results → /home/lilith/tmp/zenbench/zenbench-1791785230-2e3886.txt
+
+═══════════════════════════════════════════════════════════════
+  zenbench  1791785230-2e3886
+  git: 4d27bf60fda84ca0fa4151837f39743dabf40834
+═══════════════════════════════════════════════════════════════
+
+  check_isolated  4 rounds × 98 calls ⚠ only 4 rounds
+                                  mean ±mad µs  95% CI vs base       checks/s
+  ├─ &dyn Pulse → NoPulse         10.3 ±0.1µs  [10.2–10.4]µs         974M
+  ├─ &dyn Pulse → tree(Unsto…     24.3 ±2.4µs  [+113.4%–+160.7%]     411M
+  ├─ &dyn Pulse → tree(Stopp…     23.1 ±2.5µs  [+103.8%–+146.9%]     432M
+  ├─ may_stop gate → tree(Un…      0.0 ±0.0µs  [-101.0%–-98.8%]     1192G [1]
+  ╰─ impl Stop → Unstoppable       0.0 ±0.0µs  [-101.1%–-98.9%]     6904G [2] [3]
+
+  impl Stop → Unstoppable     ███████████████████████████████████ 6904 Gchecks/s
+  may_stop gate → tree(Un…    ██████ 1192 Gchecks/s
+  &dyn Pulse → NoPulse        █ 974 Mchecks/s
+  &dyn Pulse → tree(Stopp…    █ 432 Mchecks/s
+  &dyn Pulse → tree(Unsto…    █ 411 Mchecks/s
+  [1] CV=44%
+  [2] drift r=0.80 — later rounds slower
+  [3] CV=34%
+[1m[91merror[0m: bench failed, to rerun pass `-p how-far-along --bench overhead`
+
+Caused by:
+  process didn't exit successfully: `/home/lilith/work/how-far/target/release/deps/overhead-557af8c872347d6c --help --bench` (signal: 15, SIGTERM: termination signal)
+run-heavy: done rc=101 138s | peak-RSS 0.40GiB | min-avail 51886MiB | peak-load 0.50

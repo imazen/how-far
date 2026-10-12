@@ -51,7 +51,9 @@ features, only the `enough` production dependency,
 and no build script. It caps `Stages::run` at 120 unoptimized LLVM IR lines per
 call site, tracker code at 22,000 and the `how-far-really` diagnostics crate at
 35,000 with default features. Optional smoothing and stage suggestions are
-outside those default-feature caps. It also counts rustc's instructions, which unlike wall time do not
+outside those default-feature caps. The guard also requires identical,
+branch-free optimized `PulseTree::check` and `may_stop` bodies with `callback`
+disabled and enabled. It also counts rustc's instructions, which unlike wall time do not
 depend on machine load. `dev/how-far-checkpoint-cost` counts, with perf, what
 each observer costs in each library scenario around the same
 `#[inline(never)]` defilter.

@@ -8,6 +8,8 @@
 
 ### Fixed
 
+- Isolate callback dispatch in `FnPulse` policies so enabling `callback` adds no callback slot or branch to ordinary `PulseTree` nodes (`ea85c915`).
+
 - Synchronize the host cancellation fixture so dropped polling attempts and worker completion cannot hide its requested stop.
 
 ### Changed
