@@ -9,7 +9,7 @@ What is tested, where, and what the tests do not cover. See
 | --- | --- |
 | Counting through every sink shape; original call sites survive forwarding | `crates/how-far/tests/interface.rs` |
 | The `Pulse` contract on `NoPulse`: nested plans, validation, shared views, `split_array`, outcomes from results; `PhaseSpec::validate_split` and `Child::inert` for implementors | `crates/how-far/tests/pulse.rs` |
-| Named `Stage` handles: direct calls with different data/results, failure before `?`, drop/unwind, owned names, sequencing, rejected observations and shared workers | `crates/how-far-along/tests/direct_stages.rs` |
+| Stage reservations and handles: direct calls with different data/results, failure before `?`, drop/unwind, temporary labels, moved plans, wrong-plan keys, repeated work, fork–join with distinct branch outputs and nested sequences, rejected observations and shared workers | `crates/how-far-along/tests/direct_stages.rs` |
 | `FnPulse`: checkpoint-only callbacks, lazy observation, reentrant observation, final paced cancellation, concurrent first-stop latching, no callback from Drop; shares accounting with the tree tests | `crates/how-far-along/tests/redesign.rs` |
 | References, boxes and `Arc`s of a pulse: generic code taking `&NoPulse` by value, an owned `Box<dyn Pulse>` defaulting to it, stops, reports, splits and shares forwarded | `crates/how-far/tests/forwarding.rs` |
 | `Paced`: never reaching a no-op pulse, exact counts per interval, stops seen at the next reach, pending units counted after an early return, saturation, call sites | `crates/how-far/tests/paced.rs` |
@@ -47,15 +47,17 @@ and feature-gated grouping are covered by `crates/how-far-really/tests/diagnosti
 
 ## Build and runtime cost
 
-[The named-stage measurements](../benchmarks/named-stages-2026-10-12.md) compare
-direct handoffs with the retained closure runner and describe the IR metric.
+[The reservation and fork measurements](../benchmarks/stage-reservations-2026-10-12.md)
+compare variable-based handoffs and fork branches with the retained closure
+runner. The [earlier named-stage record](../benchmarks/named-stages-2026-10-12.md)
+belongs to the initial string-based API. Both describe the IR metric.
 
 [The callback default change](../benchmarks/callback-default-2026-10-12.md) records
 the measured cost and assembly verification for unconditional callbacks.
 
 `dev/bench-how-far-build.py`, run in CI on Rust 1.88, permits no core Cargo
 features, only the `enough` production dependency,
-and no build script. It caps `Stages::run` and direct named-stage handoffs at 120 additional
+and no build script. It caps `Stages::run`, reserved-stage and fork-branch handoffs at 120 additional
 unoptimized how-far LLVM IR lines per call site, tracker code at 25,000 and the `how-far-really` diagnostics crate at
 35,000 with default features. Optional smoothing and stage suggestions are
 outside those default-feature caps. The guard also requires branch-free optimized `PulseTree::check` and

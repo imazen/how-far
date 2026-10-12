@@ -17,7 +17,7 @@ application/tests → how-far-really → how-far-along + how-far
 ```
 
 `how-far` owns the portable protocol: `Pulse`, `Stop`, `Report`, planning
-specs, `Child`, `SharedPulse`, `Stage`, `Stages`, `Phases`, pacing and result handoffs,
+specs, `Child`, `SharedPulse`, `StageKey`, `Stage`, `Stages`, `Phases`, pacing and result handoffs,
 plus the two pulses that observe nothing: `NoPulse` and the cancellation-only
 `StopOnly`. `AsStopReason` lives in `enough`, which libraries already depend on, and
 is re-exported. Libraries expose `&dyn Pulse` and their own error types, never
@@ -38,15 +38,31 @@ A library accepts `&dyn Pulse`. `check` asks whether to stop and may run a
 checkpoint callback; `advance` only counts completed units; `step` does both, in
 that order. Hot codec loops stay non-generic over their pulse.
 
-`Stages::begin("name")` hands out the next sequential stage for an ordinary
-function call. The name must match the next declaration; mismatches record
-`StageNameMismatch` and return an untracked cancellation-preserving handle
-without consuming the declaration. The `Stage` borrows its plan, preventing
-overlapping sequential handles. `operation(&stage).finish_phase(stage)?`
-records the result before control leaves the function. Failure or cancellation
-immediately resolves remaining stages as `NotRun`. Dropping an active stage
-records `Abandoned` and also resolves the remaining sequence as `NotRun`.
-Complete the plan on success to discharge optional unused stages.
+`Stages::define(pulse, [specs...])` returns a sequence and an array of
+reservations. Bind them to variables and call `stages.begin(key)` in order.
+Keys carry plan identity and position; labels are display text only. Wrong-plan,
+reused and out-of-order keys record `StageMismatch` and return an untracked
+cancellation-preserving handle without consuming the declaration. A key is
+not a completion owner: discarding it leaves the phase pending. One `Arc`
+identity allocation per nonempty definition keeps keys valid across moves and
+prevents stale keys matching a later plan. There is no shared mutable
+coordination state. `Stages::new` with `begin_next()` serves runtime-sized
+repeated work using the same active handles and result handoffs.
+
+The `Stage` borrows its plan, preventing overlapping sequential handles.
+`operation(&stage).finish_phase(stage)?` records the result before control
+leaves the function. Failure or cancellation immediately resolves remaining
+stages as `NotRun`. Dropping an active stage records `Abandoned` and also
+resolves the remaining sequence as `NotRun`. Complete the plan on success to
+discharge optional unused stages.
+
+`stage.fork([specs...])` starts independently owned `Child` handles under
+`Execution::ForkJoin`. They borrow the enclosing stage; scheduling and joining
+belong to the caller. Each branch can run a different operation or declare its
+own sequence. Finish each branch with its result, join all workers, then hand
+the combined result to the enclosing stage. A failed branch does not finish or
+cancel siblings. Unlike sequential reservations, forked handles are already
+active and abandon their branches when dropped unfinished.
 
 `Phases` selects independent attempts and permits recovery. `Stages::run` and
 `Complete::complete_with` are optional closure conveniences. All result

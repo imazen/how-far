@@ -106,7 +106,7 @@ library error represents its chosen response to `NotShareable`, rather than
 requiring every library error to convert all planning errors:
 
 ```rust,ignore
-let stage = stages.begin("encode");
+let stage = stages.begin(encode);
 let result = match stage.share() {
     Ok(owned) => encoder.with_stop(owned).encode(input),
     Err(error) => Err(error.into()), // handle unsupported ownership explicitly

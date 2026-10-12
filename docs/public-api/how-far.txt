@@ -6,27 +6,27 @@
 # impls omitted; re-export duplicates annotated `[also: path]`.
 # DO NOT EDIT BY HAND — commit regenerated changes with the code.
 #
-# files: how-far.txt 193 lines (supported surface) | how-far.features.txt 0 added (features: none) | how-far.internal.txt 14 lines (14 hidden + 0 excluded-feature)
+# files: how-far.txt 198 lines (supported surface) | how-far.features.txt 0 added (features: none) | how-far.internal.txt 14 lines (14 hidden + 0 excluded-feature)
 
 ## summary
 #
 #   pub modules                                 2
-#   pub types (struct/enum/trait/alias)        29
+#   pub types (struct/enum/trait/alias)        30
 #   pub consts/statics                          7
 #   free functions                             14
-#   inherent methods                           73
+#   inherent methods                           76
 #   struct fields                               8
 #   enum variants                              25
 #   re-exports                                  6
-#   trait roster entries (type × trait)        98
-#   auto-trait-complete types                   7
+#   trait roster entries (type × trait)       100
+#   auto-trait-complete types                   8
 #   auto-trait exceptions                      11
 #
 # per-module pub lines:
-#   (root)                          141
+#   (root)                          145
 #   prelude                          23
 
-## items (152 lines)
+## items (156 lines)
 
 pub mod how_far
 pub use AsStopReason
@@ -82,7 +82,7 @@ pub PlanError::NoMoreStages
 pub PlanError::NotALeaf
 pub PlanError::NotShareable
 pub PlanError::Overflow
-pub PlanError::StageNameMismatch
+pub PlanError::StageMismatch
 pub PlanError::UnfinishedChildren
 pub PlanError::Unsupported
 #[non_exhaustive] pub enum RunError<E>
@@ -132,8 +132,12 @@ pub fn SharedPulse::new(impl Pulse + 'static) -> Self
 pub fn SharedPulse::plan(&self, Execution, &[PhaseSpec<'_>]) -> alloc::vec::Vec<Child<'_>>
 pub fn SharedPulse::paced(&self, u64) -> Paced<'_>
 pub struct Stage<'s, 'p>
+pub fn Stage<'_, '_>::fork<const N: usize>(&self, [PhaseSpec<'_>; N]) -> [Child<'_>; N]
+pub struct StageKey
 pub struct Stages<'a>
-pub fn Stages<'a>::begin(&mut self, &str) -> Stage<'_, 'a>
+pub fn Stages<'a>::begin(&mut self, StageKey) -> Stage<'_, 'a>
+pub fn Stages<'a>::begin_next(&mut self) -> Stage<'_, 'a>
+pub fn Stages<'a>::define<const N: usize>(&'a dyn Pulse, [PhaseSpec<'_>; N]) -> (Self, [StageKey; N])
 pub fn Stages<'a>::new(&'a dyn Pulse, &[PhaseSpec<'_>]) -> Self
 pub fn Stages<'a>::run<T, E>(&mut self, impl core::ops::function::FnOnce(&dyn Pulse) -> core::result::Result<T, E>) -> core::result::Result<T, E> where E: enough::reason::AsStopReason
 pub fn Stages<'a>::run_classified<T, E>(&mut self, impl core::ops::function::FnOnce(&E) -> bool, impl core::ops::function::FnOnce(&dyn Pulse) -> core::result::Result<T, E>) -> core::result::Result<T, E>
@@ -181,7 +185,7 @@ pub fn Report::may_report(&self) -> bool
 pub trait ResultExt<T, E>: core::marker::Sized [also: prelude]
 pub fn ResultExt::finish_phase(self, impl Complete) -> core::result::Result<T, E> where E: enough::reason::AsStopReason
 
-## trait impls (29 types)
+## trait impls (30 types)
 
 &P: Pulse
 &T: Report
@@ -200,6 +204,7 @@ ProgressWithStop<S, R>: Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Report
 RunError<E>: Debug, Display, Eq, Error, From<PlanError>, PartialEq
 SharedPulse: Clone, Debug, Default, Pulse, Report, enough::Stop
 Stage<'_, '_>: Complete, Debug, Drop, Pulse, Report, enough::Stop
+StageKey: Clone, Debug
 Stages<'_>: Complete
 StopOnly<'_>: Debug, Pulse, Report, enough::Stop
 T: ProgressExt
@@ -215,7 +220,7 @@ core::result::Result<T, E>: ResultExt<T, E>
 
 ## auto traits
 
-7 types implement all of: Freeze, RefUnwindSafe, Send, Sync, Unpin, UnwindSafe
+8 types implement all of: Freeze, RefUnwindSafe, Send, Sync, Unpin, UnwindSafe
 Child<'a>: !RefUnwindSafe !UnwindSafe
 Paced<'a>: !RefUnwindSafe !UnwindSafe
 Phases<'a>: !RefUnwindSafe !UnwindSafe
