@@ -191,6 +191,10 @@ impl ProgressSmoother {
     /// while preserving the learned pace. Calling again with the same snapshot
     /// and a later time moves the display on.
     ///
+    /// Weighted parents show known children's progress even when other children
+    /// have unknown totals. Those children contribute zero and keep their share
+    /// in [`Snapshot::unresolved_fraction`], just as with [`Snapshot::fraction`].
+    ///
     /// While a leaf runs under the same total its display never goes back.
     /// A finished leaf shows what the snapshot records, and a revised total
     /// starts the leaf over from its count, so the display steps back when
@@ -224,15 +228,13 @@ impl ProgressSmoother {
         for child in &node.children {
             sum += child.weight as f64;
         }
-        let (mut result, mut known) = (0.0, true);
-        // Visit every child, so that no running leaf loses its pace.
+        let mut result = 0.0;
+        // Visit every child, so that no running leaf loses its pace. Unresolved
+        // children retain their weight but contribute no estimated progress.
         for child in &node.children {
-            match self.node(child, now) {
-                Some(fraction) => result += child.weight as f64 / sum * fraction,
-                None => known = false,
-            }
+            result += child.weight as f64 / sum * self.node(child, now).unwrap_or(0.0);
         }
-        known.then_some(result.clamp(0.0, 1.0))
+        Some(result.clamp(0.0, 1.0))
     }
 
     fn leaf(&mut self, node: NodeId, count: u64, total: u64, now: Duration) -> f64 {

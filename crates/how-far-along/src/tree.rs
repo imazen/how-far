@@ -46,7 +46,9 @@ pub enum Status {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Summary {
-    /// None when some required count is unknown or overflowed.
+    /// Known weighted progress; unresolved children contribute zero.
+    /// None only for a leaf whose count denominator is unknown or overflowed.
+    /// Read `unresolved_fraction` alongside this value to expose missing evidence.
     pub fraction: Option<f64>,
     /// Share whose denominator is unknown or invalid.
     pub unresolved_fraction: f64,
@@ -286,11 +288,7 @@ impl Node {
             unresolved += weight * observed.unresolved_fraction;
         }
         if !credited(status) {
-            result.fraction = if unresolved == 0.0 {
-                Some(fraction.clamp(0.0, 1.0))
-            } else {
-                None
-            };
+            result.fraction = Some(fraction.clamp(0.0, 1.0));
             result.unresolved_fraction = unresolved;
         }
         Some(result)
@@ -836,8 +834,13 @@ impl Snapshot {
     pub const fn counter_max() -> u64 {
         crate::sync::COUNT_MAX
     }
-    /// Work fraction in [0, 1], or None when any required denominator is unknown
-    /// or invalid. Success/skipping discharges the obligation, including zero work.
+    /// Known work fraction in [0, 1]. Weighted parents retain each child's
+    /// declared share; unknown or invalid child fractions contribute zero,
+    /// without hiding known siblings or renormalizing their weights.
+    /// Read [`Self::unresolved_fraction`] alongside this value to show the share
+    /// whose progress remains unknown. A leaf with an unknown or invalid count
+    /// denominator returns None. Success/skipping discharges the obligation,
+    /// including zero work.
     pub fn fraction(&self) -> Option<f64> {
         if self.children.is_empty() || credited(self.status) {
             return leaf_fraction(self.status, self.total, self.completed, self.overflowed);
@@ -845,18 +848,18 @@ impl Snapshot {
         let sum = self.child_weight_sum();
         let mut result = 0.0;
         for child in &self.children {
-            result += child.weight as f64 / sum * child.fraction()?;
+            result += child.weight as f64 / sum * child.fraction().unwrap_or(0.0);
         }
         Some(result.clamp(0.0, 1.0))
     }
     /// Fraction of the fixed budget whose count denominator is unresolved.
     /// This lets consumers display "known work + unknown remainder" honestly.
     pub fn unresolved_fraction(&self) -> f64 {
-        if self.fraction().is_some() {
-            return 0.0;
-        }
         if self.children.is_empty() {
-            return 1.0;
+            return if self.fraction().is_some() { 0.0 } else { 1.0 };
+        }
+        if credited(self.status) {
+            return 0.0;
         }
         let sum = self.child_weight_sum();
         let mut unresolved = 0.0;

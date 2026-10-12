@@ -15,3 +15,8 @@
   dispatcher slot and checkpoint branch to every ordinary tree. Private policy
   types now separate ordinary cancellation from callback dispatch; the build-cost
   guard requires branch-free ordinary checkpoint code with callbacks available.
+
+- Fixed before 0.1 publication: a weighted parent returned no fraction if any
+  child had an unknown total, hiding known siblings' progress. Snapshots,
+  summaries and smoothing now count known progress without renormalizing
+  weights; unresolved_fraction preserves unknown shares.

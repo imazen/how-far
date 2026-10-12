@@ -375,3 +375,34 @@ fn extrapolation_stays_below_one_at_totals_beyond_f64_precision() {
     reporter.advance(1);
     near(at(&mut smooth, &observer, 300), 1.0);
 }
+
+#[test]
+fn unknown_sibling_preserves_known_pace_and_its_own_reserved_share() {
+    let mut job = Phase::new("export", Total::Unknown);
+    let [mut known, mut optional] = job
+        .split(
+            Execution::Sequence,
+            [
+                PhaseSpec::new("known", 1, Total::Exact(4)),
+                PhaseSpec::new("optional", 1, Total::Unknown),
+            ],
+        )
+        .unwrap();
+    known.start().unwrap();
+    let observer = job.observer();
+    let mut smooth = ProgressSmoother::new();
+    assert_eq!(at(&mut smooth, &observer, 0), 0.0);
+    known.reporter().advance(1);
+    assert_eq!(at(&mut smooth, &observer, 100), 0.125);
+    assert_eq!(at(&mut smooth, &observer, 150), 0.1875);
+    assert_eq!(observer.snapshot().fraction(), Some(0.125));
+    assert_eq!(observer.summary().fraction, Some(0.125));
+    assert_eq!(observer.snapshot().unresolved_fraction(), 0.5);
+    // A failed unknown sibling grants no progress and keeps its unresolved share.
+    optional.finish_with(Outcome::Failed).unwrap();
+    assert_eq!(at(&mut smooth, &observer, 150), 0.1875);
+    known.finish_with(Outcome::Cancelled).unwrap();
+    job.finish_with(Outcome::Cancelled).unwrap();
+    assert_eq!(at(&mut smooth, &observer, 200), 0.125);
+    assert_eq!(observer.summary().unresolved_fraction, 0.5);
+}

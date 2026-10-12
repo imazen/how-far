@@ -114,3 +114,21 @@ test('scenario changes keep the layout still and work reports have no narration 
     }
   }
 });
+
+
+test('optional unknown work reserves its share while known work advances', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('./');
+  await page.locator('button[data-scenario="skip"]').click();
+  const trace = (await (await page.request.get('traces.json')).json()).skip;
+  const position = trace.frames.findIndex(frame => frame.snapshot.root.children[0].completed === '512');
+  expect(position).toBeGreaterThan(0);
+  const root = trace.frames[position].snapshot.root;
+  expect(root.fraction).toBe(0.2);
+  expect(root.unresolved_fraction).toBe(0.1);
+  expect(root.children[1].fraction).toBeNull();
+  await page.locator('#event-position').fill(String(position));
+  await expect(page.locator('#overall')).toHaveText('20%');
+  await expect(page.locator('#tree > .node > .track > .unknown-part')).toHaveAttribute('style', 'width: 10%;');
+  await expect(page.locator('#tree > .node > .track > span').first()).toHaveAttribute('style', 'width: 20%;');
+});

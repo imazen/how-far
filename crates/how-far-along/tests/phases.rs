@@ -208,12 +208,12 @@ fn unknown_subtree_keeps_reserved_budget_and_failures_do_not_discharge_it() {
         )
         .unwrap();
     known.finish().unwrap();
-    assert_eq!(job.observer().snapshot().fraction(), None);
+    assert_eq!(job.observer().snapshot().fraction(), Some(0.7));
     assert!((job.observer().snapshot().unresolved_fraction() - 0.3).abs() < 1e-12);
     unknown.reporter().advance(2);
     unknown.finish_with(Outcome::Cancelled).unwrap();
     job.finish_with(Outcome::Cancelled).unwrap();
-    assert_eq!(job.observer().snapshot().fraction(), None);
+    assert_eq!(job.observer().snapshot().fraction(), Some(0.7));
 }
 
 #[test]
@@ -378,4 +378,117 @@ fn only_a_leaf_has_its_own_total_and_a_failed_finish_can_be_retried() {
     child.finish().unwrap();
     job.finish().unwrap();
     assert_eq!(job.observer().snapshot().fraction(), Some(1.0));
+}
+
+#[test]
+fn weighted_progress_advances_before_an_unknown_optional_stage_is_resolved() {
+    let mut job = Phase::new("export", Total::Unknown);
+    let [mut resize, mut optional] = job
+        .split(
+            Execution::Sequence,
+            [
+                PhaseSpec::new("resize", 1, Total::Exact(4)),
+                PhaseSpec::new("optional", 1, Total::Unknown),
+            ],
+        )
+        .unwrap();
+    let observer = job.observer();
+    resize.reporter().advance(1);
+    assert_eq!(observer.snapshot().fraction(), Some(0.125));
+    assert_eq!(observer.summary().fraction, Some(0.125));
+    assert_eq!(observer.snapshot().unresolved_fraction(), 0.5);
+    assert_eq!(observer.summary().unresolved_fraction, 0.5);
+    assert_eq!(optional.observer().snapshot().fraction(), None);
+    resize.reporter().advance(1);
+    assert_eq!(observer.snapshot().fraction(), Some(0.25));
+    optional.finish_with(Outcome::Skipped).unwrap();
+    assert_eq!(observer.snapshot().fraction(), Some(0.75));
+    assert_eq!(observer.summary().fraction, Some(0.75));
+    assert_eq!(observer.snapshot().unresolved_fraction(), 0.0);
+    resize.finish().unwrap();
+    job.finish().unwrap();
+    assert_eq!(observer.snapshot().fraction(), Some(1.0));
+    assert_eq!(observer.summary().fraction, Some(1.0));
+}
+
+#[test]
+fn nested_unknown_budgets_keep_known_progress_in_live_and_frozen_observations() {
+    let mut job = Phase::new("job", Total::Unknown);
+    let [mut branch, mut unknown_outer] = job
+        .split(
+            Execution::ForkJoin,
+            [
+                PhaseSpec::new("branch", 1, Total::Unknown),
+                PhaseSpec::new("unknown outer", 1, Total::Unknown),
+            ],
+        )
+        .unwrap();
+    let [mut known, mut unknown_inner] = branch
+        .split(
+            Execution::ForkJoin,
+            [
+                PhaseSpec::new("known", 1, Total::Exact(4)),
+                PhaseSpec::new("unknown inner", 1, Total::Unknown),
+            ],
+        )
+        .unwrap();
+    known.reporter().advance(2);
+    let observer = job.observer();
+    let check = || {
+        let snapshot = observer.snapshot();
+        assert_eq!(snapshot.fraction(), Some(0.125));
+        assert_eq!(snapshot.unresolved_fraction(), 0.75);
+        assert_eq!(observer.summary().fraction, snapshot.fraction());
+        assert_eq!(
+            observer.summary().unresolved_fraction,
+            snapshot.unresolved_fraction()
+        );
+        assert_eq!(observer.try_summary(), Some(observer.summary()));
+        let mut json = String::new();
+        snapshot.write_json(&mut json).unwrap();
+        let root = json.split("\"children\":").next().unwrap();
+        assert!(root.contains("\"fraction\":0.125,"));
+        assert!(root.contains("\"unresolved_fraction\":0.75,"));
+    };
+    check();
+    known.finish_with(Outcome::Cancelled).unwrap();
+    unknown_inner.finish_with(Outcome::Cancelled).unwrap();
+    branch.finish_with(Outcome::Cancelled).unwrap();
+    unknown_outer.finish_with(Outcome::Cancelled).unwrap();
+    job.finish_with(Outcome::Cancelled).unwrap();
+    check();
+    assert_eq!(
+        observer.snapshot().status,
+        Status::Finished(Outcome::Cancelled)
+    );
+}
+
+#[test]
+fn all_unknown_and_overflowed_children_reserve_their_weight_without_hiding_siblings() {
+    let mut job = Phase::new("job", Total::Unknown);
+    let [mut left, mut right] = job
+        .split(
+            Execution::ForkJoin,
+            [
+                PhaseSpec::new("left", 1, Total::Unknown),
+                PhaseSpec::new("right", 1, Total::Unknown),
+            ],
+        )
+        .unwrap();
+    let observer = job.observer();
+    assert_eq!(observer.snapshot().fraction(), Some(0.0));
+    assert_eq!(observer.snapshot().unresolved_fraction(), 1.0);
+    assert_eq!(observer.summary().fraction, Some(0.0));
+    assert_eq!(observer.summary().unresolved_fraction, 1.0);
+    left.set_total(Total::Exact(4)).unwrap();
+    left.reporter().advance(2);
+    right.set_total(Total::Exact(8)).unwrap();
+    right.reporter().advance(Snapshot::counter_max());
+    right.reporter().advance(1);
+    assert!(right.observer().snapshot().overflowed);
+    assert_eq!(right.observer().snapshot().fraction(), None);
+    assert_eq!(observer.snapshot().fraction(), Some(0.25));
+    assert_eq!(observer.snapshot().unresolved_fraction(), 0.5);
+    assert_eq!(observer.summary().fraction, Some(0.25));
+    assert_eq!(observer.summary().unresolved_fraction, 0.5);
 }

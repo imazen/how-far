@@ -197,7 +197,7 @@ fn skipping() -> String {
         ],
     );
     let stage = stages.begin(resize);
-    trace.event(&observer, "A plan can include optional work", "The caller disabled watermarking. The declared plan still shows where that choice belongs.", "let (mut stages, [resize, watermark, encode]) = Stages::define(pulse, specs);");
+    trace.event(&observer, "A plan can include optional work", "Resizing advances the overall bar immediately. The optional watermark keeps its reserved 10% share, shown hatched until it is resolved.", "let (mut stages, [resize, watermark, encode]) = Stages::define(pulse, specs);");
     for _ in 0..64 {
         stage.step(16).unwrap();
         trace.frame(&observer, 35);

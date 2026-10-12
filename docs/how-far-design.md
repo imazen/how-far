@@ -144,8 +144,13 @@ shapes but keeps no lifecycle state, so it cannot detect stateful misuse.
 a leaf counter, never a job-wide fraction, so independent workers do not
 contend on one counter. `Observer::summary` walks the subtree without copying
 names or allocating; `try_summary` skips a busy metadata read; snapshots
-allocate their records. Fractions can regress after a total revision and stay
-unknown while a required denominator is unknown or overflowed.
+allocate their records. Fractions can regress after a total revision. A leaf
+with an unknown or overflowed denominator has no fraction. Weighted parents
+still show known children's progress: unresolved children contribute zero and
+retain their declared weights, without renormalizing known siblings. Read
+`unresolved_fraction` alongside the fraction to show that reserved unknown
+share. Snapshots, allocation-free summaries and display smoothing use the same
+accounting rule; an unknown optional stage never hides a known sibling's work.
 
 `FnPulse` is always available. Each check offers a lazy view
 (phase, name, summary and snapshot accessors) that walks nothing unless asked.

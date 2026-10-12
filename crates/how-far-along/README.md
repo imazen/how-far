@@ -55,8 +55,12 @@ an inferred successful result.
 allocating. `snapshot()` copies the tree. `try_summary` / `try_snapshot` avoid
 waiting on standard metadata locks; on no_std they enter the host's critical
 section and do not promise wait-free access. Counting never locks metadata.
-Unknown totals and overflow stay visible; fractions can regress after revisions.
-Success discharges a parent's obligation without rewriting failed attempts.
+Weighted parents show known progress even while other stages have unknown
+totals. Unknown children contribute zero but keep their assigned weight;
+`unresolved_fraction` exposes their reserved share. A leaf with an unknown or
+overflowed denominator still returns `None`. Fractions can regress after total
+revisions. Success discharges a parent's obligation without rewriting failed
+attempts.
 
 The only default feature is `std`. Snapshot JSON, `WithStop`, `FnPulse` and lazy
 `Checkpoint` are always available. With defaults disabled, tracking uses
