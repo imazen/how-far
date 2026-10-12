@@ -12,6 +12,8 @@
 
 ### Changed
 
+- Stop forwarding `how-far-along/std` to the compatibility feature `enough/std`; both configurations already enable `enough/alloc`.
+
 - Test the library integration guide as doctests and update the real zenpng fixture for caller-owned completion and padded input (`04398811`, `fa1b4d2c`, `7e1fba51`).
 
 - Smoothing keeps the learned pace for count updates with no new time interval, without retaining an undo buffer.

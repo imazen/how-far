@@ -181,6 +181,19 @@ provider. Diagnostics is a separate std-only crate. An encoder can feature-gate
 both its how-far dependency and every reporting site, as the zenpng fixture
 does.
 
+The tracker `std` feature selects its mutex backend; it does not enable
+`enough/std`, because both configurations already use `enough/alloc`.
+`callback` also adds a dispatcher slot to each pulse state and a conditional
+dispatch at checkpoints. The other optional features add APIs or analysis:
+`adapters` and `checked` add no dependencies, `json` uses `core::fmt` without
+serde, and `smooth` owns its state separately from the tree. Diagnostics'
+`stage-suggestions` gate adds grouping during analysis, using timestamps
+already collected without the feature. These gates can therefore be assessed
+as compile-cost and API choices separately from the tracker backend and
+checkpoint overhead. The default build-cost guard excludes `smooth` and
+`stage-suggestions`; making either unconditional needs a new measurement
+against the existing budgets.
+
 Extensible enums and observation records are non-exhaustive. Diagnostic
 messages are not machine identifiers, and timing thresholds are not correctness
 rules. IDs identify records within a process. Tracking JSON is schema 2; trace

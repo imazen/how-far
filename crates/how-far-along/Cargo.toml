@@ -12,7 +12,8 @@ categories = ["concurrency", "no-std"]
 [features]
 # Features are additive: they add items and fields and never remove or retype any.
 default = ["std", "json"]
-std = ["enough/std"]
+# Selects our mutex backend; enough only needs alloc in either configuration.
+std = []
 callback = []
 adapters = ["how-far/adapters"]
 json = []
