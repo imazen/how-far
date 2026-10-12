@@ -3,23 +3,33 @@
 Tracking and observation for `how-far`. This crate records declared work;
 applications choose when to observe it. It starts no threads and reads no clocks.
 
+The library accepts `&dyn Pulse`; the application owns the tree and its final
+result. Keep an observer for your display, then hand the result back before `?`:
+
 ```rust
-use how_far_along::{prelude::*, Phase, PhaseSpec, PulseTree, Stages, StopReason, Total, Unstoppable};
-let tree = PulseTree::new(Phase::new("job", Total::Unknown), Unstoppable);
+use how_far_along::{prelude::*, Phase, PulseTree, StopReason, Total, Unstoppable};
+
+fn checksum(bytes: &[u8], pulse: &dyn Pulse) -> Result<u64, StopReason> {
+    pulse.check()?;
+    let mut sum = 0;
+    for &byte in bytes {
+        sum += u64::from(byte);
+        pulse.step(1)?;
+    }
+    Ok(sum)
+}
+
+let tree = PulseTree::new(Phase::new("checksum", Total::Exact(3)), Unstoppable);
 let observer = tree.observer();
-let result = {
-    let (mut stages, [work_key, _optional_key]) = Stages::define(&tree, [
-        PhaseSpec::new("work", 1, Total::Exact(2)),
-        PhaseSpec::new("optional", 1, Total::Exact(1)),
-    ]);
-    let phase = stages.begin(work_key);
-    let result = phase.step(2).finish_phase(phase);
-    result.finish_phase(stages)
-};
-result.finish_phase(tree)?;
+let result = checksum(&[1, 2, 3], &tree).finish_phase(tree)?;
+assert_eq!(result, 6);
 assert_eq!(observer.snapshot().fraction(), Some(1.0));
 # Ok::<(), StopReason>(())
 ```
+
+Replace `Unstoppable` with your application's stop token. The library's code
+stays the same. [The integration guide](../../docs/how-far-integration.md)
+shows cancellation callbacks, nested stages and display smoothing.
 
 Every phase starts `Status::NotStarted`, becomes `Running` when entered or
 reported to, and eventually becomes `Finished(Outcome)`. Outcomes distinguish

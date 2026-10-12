@@ -6,36 +6,71 @@ No tracker, clock, executor, serialization, or diagnostic collector is required.
 Rust 1.88, like the other how-far crates; pointer atomics and an allocator are
 required.
 
+## One operation
+
+Accept a pulse, check before starting, and report work after doing it:
+
+```rust
+use how_far::{prelude::*, StopReason};
+
+fn checksum(bytes: &[u8], pulse: &dyn Pulse) -> Result<u64, StopReason> {
+    pulse.check()?;
+    let mut sum = 0;
+    for &byte in bytes {
+        sum += u64::from(byte);
+        pulse.step(1)?;
+    }
+    Ok(sum)
+}
+assert_eq!(checksum(b"hello", &how_far::NoPulse), Ok(532));
+```
+
+Use the same function with `&how_far::NoPulse`, a tracker from `how-far-along`,
+or `&StopOnly::borrowed(&token)` for cancellation alone. The library never
+finishes the borrowed input pulse: its caller owns that result handoff.
+See the [application quickstart](../how-far-along/README.md).
+
+## Several operations
+
+Define the stages once, bind their reservations to variables, and pass each
+active handle to its operation. The operations can take different inputs and
+return different types:
+
 ```rust
 use how_far::{prelude::*, PhaseSpec, Stages, StopReason, Total};
 
-fn encode(rows: &[u8], pulse: &dyn Pulse) -> Result<(), StopReason> {
-    let (mut stages, [encode, _metadata]) = Stages::define(pulse, [
-        PhaseSpec::new("encode", 1, Total::Exact(rows.len() as u64)).units("rows"),
-        PhaseSpec::new("optional metadata", 1, Total::Exact(1)),
+fn prepare(bytes: &mut [u8], pulse: &dyn Pulse) -> Result<u64, StopReason> {
+    let (mut stages, [invert, checksum]) = Stages::define(pulse, [
+        PhaseSpec::new("invert", 1, Total::Exact(bytes.len() as u64)),
+        PhaseSpec::new("checksum", 1, Total::Exact(bytes.len() as u64)),
     ]);
-    let encode = stages.begin(encode);
-    encode_rows(rows, &encode).finish_phase(encode)?;
-    stages.complete(Ok(()))
+    let invert = stages.begin(invert);
+    invert_bytes(bytes, &invert).finish_phase(invert)?;
+    let checksum = stages.begin(checksum);
+    let sum = sum_bytes(bytes, &checksum).finish_phase(checksum)?;
+    stages.complete(Ok(sum))
 }
 
-fn encode_rows(rows: &[u8], pulse: &dyn Pulse) -> Result<(), StopReason> {
+fn invert_bytes(bytes: &mut [u8], pulse: &dyn Pulse) -> Result<(), StopReason> {
     pulse.check()?;
-    let mut pace = pulse.paced(64);
-    for _row in rows {
-        // Encode the row, then report completed work.
-        pace.step(1)?;
+    for byte in bytes {
+        *byte = !*byte;
+        pulse.step(1)?;
     }
-    pace.finish()
+    Ok(())
 }
-encode(&[1, 2, 3], &how_far::NoPulse)?;
-# Ok::<(), StopReason>(())
-```
 
-An application calls such a library with `&how_far::NoPulse`, a tracker from
-`how-far-along`, or, when it has only a cancellation token, with
-`&StopOnly::new(token)` (or `StopOnly::borrowed(&token)`): every nested phase
-checks that token, and progress costs nothing.
+fn sum_bytes(bytes: &[u8], pulse: &dyn Pulse) -> Result<u64, StopReason> {
+    pulse.check()?;
+    let mut sum = 0;
+    for &byte in bytes {
+        sum += u64::from(byte);
+        pulse.step(1)?;
+    }
+    Ok(sum)
+}
+assert_eq!(prepare(&mut [0, 255], &how_far::NoPulse), Ok(255));
+```
 
 `Stages::define` returns the plan and an array of `StageKey` reservations.
 Bind them to variables; `stages.begin(key)` gives the next active handle.
@@ -54,12 +89,6 @@ For runtime-sized repeated work, `Stages::new` plus `begin_next()` uses the
 same handles without named reservations. See the
 [fork–join example](../../docs/how-far-integration.md#forkjoin-with-different-operations).
 
-`Phases` runs independently selected phases, allowing a library to catch a failed
-attempt and run a fallback. Neither helper introduces a planning error into the
-work's result. Plans rejected by an observer retain cancellation/checkpoint
-behavior through untracked children. `record_issue` lets an optional diagnostic
-wrapper retain evidence of rejected observations.
-
 `Complete::complete(result)` and `ResultExt::finish_phase(owner)` are explicit
 result handoffs, returning the original value/error unchanged. Untouched phases
 become `Skipped` on success or `NotRun` on failure. Drop without a result records
@@ -68,6 +97,8 @@ become `Skipped` on success or `NotRun` on failure. Drop without a result record
 over: a bare `?` before that handoff cannot classify its error for the tracker.
 A borrowed pulse belongs to its caller: complete your child owners and plan,
 never the borrowed input.
+
+## Adapting existing code
 
 `Stages::run` and `Complete::complete_with` remain optional closure conveniences.
 The latter hands over a multi-step body's result, including early `?` returns.
@@ -83,6 +114,12 @@ the error. Forgetting it is a compile error that names the fix. Bare
 counts then checks. One `Paced` per worker batches reports. Its `finish()` flushes
 and checks the final partial batch. Its Drop only flushes; it cannot return a
 cancellation error. Counters do not synchronize application data.
+
+`Phases` runs independently selected phases, allowing a library to catch a failed
+attempt and run a fallback. These plan helpers introduce no planning error into the
+work's result. Plans rejected by an observer retain cancellation/checkpoint
+behavior through untracked children. `record_issue` lets an optional diagnostic
+wrapper retain evidence of rejected observations.
 
 `share()` preserves the complete Pulse interface for owned tasks but grants no
 completion rights. Join workers before completing their original owner.

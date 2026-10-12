@@ -6,16 +6,8 @@ Rust 1.88 and `std` are required. No executor or background thread is started.
 
 For library tests and benchmarks, put this crate in `[dev-dependencies]`.
 A diagnostics executable uses it in `[dependencies]`; an application can also
-opt into runtime profiling. The `experimental-stage-suggestions` feature keeps candidate
-stage grouping here as reusable tooling. Its weights describe one measured run
-and need comparison across representative inputs before adoption.
-
-`experimental-stage-suggestions` is excluded from the stable compatibility
-contract. Its grouping rules and generated suggestions may change in patch
-releases; tooling that depends on those results should pin an exact version or
-git revision. The feature does not weaken the compatibility contract of shared
-types such as `Trace`, `Options`, `Finding`, or `SiteStats`. Stable features and
-APIs elsewhere keep their normal compatibility guarantees.
+opt into runtime profiling. Wrap the caller's pulse and pass it to the same
+library function you already use:
 
 ```rust
 use how_far::{prelude::*, StopReason, Total, Unstoppable};
@@ -61,6 +53,14 @@ Cancellation adapters have an observation boundary. A `WithStop` outside a
 the policy bypasses that check entirely. For stop timing, instrument the added
 source with a profiler span as well. A trace without an observed stop is not proof
 that an uninstrumented policy never stopped.
+
+The optional `experimental-stage-suggestions` feature proposes stage groups
+and weights from a measured run. Compare representative inputs before adopting
+those suggestions. The feature is excluded from the stable compatibility
+contract: grouping rules and generated suggestions may change in patch
+releases, so tools depending on them should pin an exact version or Git revision.
+Shared types such as `Trace`, `Options`, `Finding` and `SiteStats` keep their
+normal compatibility guarantees.
 
 Only the `profile` and `diagnostics` modules are public. Import protocol types
 from `how_far`, tracker types from `how_far_along`, and diagnostic types here.

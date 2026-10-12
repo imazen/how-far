@@ -4,6 +4,11 @@ use alloc::{collections::VecDeque, sync::Arc};
 
 /// Sequential work returning the library's ordinary `Result<T, E>`.
 ///
+/// Start with [`Stages::define`]: bind its reservations to variables, use
+/// [`Stages::begin`] to obtain each active handle, and call your operation
+/// with `&stage`. For repeated work over a runtime-sized list, [`Stages::new`]
+/// and [`Stages::begin_next`] provide the same handle and result handoff.
+///
 /// Implement [`AsStopReason`] for your error to recognize cancellation.
 /// `From<StopReason>` supports `?` at checks; no planning-error conversion is
 /// required. For explicitly fallible planning use [`crate::TryStages`].
@@ -26,8 +31,11 @@ enum State {
 }
 
 impl<'a> Stages<'a> {
-    /// Declare a sequence. Rejected observations retain cancellation through
-    /// fallback children and cannot fail the work.
+    /// Declare a runtime-sized sequence for [`Stages::begin_next`] or [`Stages::run`].
+    ///
+    /// For a fixed set of distinct operations, [`Stages::define`] also gives
+    /// you reservations to bind to variables. Rejected observations retain
+    /// cancellation through fallback children and cannot fail the work.
     #[track_caller]
     pub fn new(parent: &'a dyn Pulse, parts: &[PhaseSpec<'_>]) -> Self {
         let pending = parent
