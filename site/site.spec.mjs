@@ -18,23 +18,23 @@ test('trace player preserves completion, cancellation, skipping and join ownersh
     while (await page.getByRole('button', { name: 'Next event' }).isEnabled()) {
       await page.getByRole('button', { name: 'Next event' }).click();
       if (scenario === 'sequence' && await page.locator('#event-title').textContent() === 'All stages finished') {
-        await expect(page.locator('#overall')).toHaveText('100%');
+        await expect(page.locator('#overall')).toHaveText('100.0%');
         await expect(page.locator('#tree > .node')).toHaveAttribute('data-status', 'Running');
       }
     }
     await expect(page.locator('#tree > .node')).toHaveAttribute('data-status', scenario === 'cancel' ? 'Cancelled' : 'Succeeded');
     if (scenario === 'cancel') {
       await expect(page.locator('.node[data-status="NotRun"] > .node-heading > .node-name')).toHaveText('Encode WebP tiles');
-      await expect(page.locator('#overall')).toHaveText('50%');
+      await expect(page.locator('#overall')).toHaveText('50.0%');
     } else {
-      await expect(page.locator('#overall')).toHaveText('100%');
+      await expect(page.locator('#overall')).toHaveText('100.0%');
     }
     if (scenario === 'skip') await expect(page.locator('.node[data-status="Skipped"] > .node-heading > .node-name')).toHaveText('Apply optional watermark');
     if (scenario === 'diagnostics') {
       await expect(page.locator('#diagnostic-kind')).toHaveText('AbandonedPhase');
       await expect(page.locator('.node[data-status="Abandoned"] > .node-heading > .node-name')).toHaveText('Encode preview tiles');
     }
-    if (scenario === 'smooth') await expect(page.locator('#smoothed-value')).toHaveText('100%');
+    if (scenario === 'smooth') await expect(page.locator('#smoothed-value')).toHaveText('100.0%');
   }
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
@@ -57,6 +57,8 @@ test('autoplay cycles, manual controls stop cycling, and smoothing has real inte
   const recorded = Number((await page.locator('#recorded-value').textContent()).replace('%', ''));
   const shown = Number((await page.locator('#smoothed-value').textContent()).replace('%', ''));
   expect(shown).toBeGreaterThan(recorded);
+  await expect(page.locator('#overall-label')).toHaveText('What the caller displays');
+  expect(await page.locator('#overall').textContent()).toBe(await page.locator('#smoothed-value').textContent());
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
   const position = await page.locator('#event-position').inputValue();
   await page.clock.runFor(15000);
@@ -128,7 +130,48 @@ test('optional unknown work reserves its share while known work advances', async
   expect(root.unresolved_fraction).toBe(0.1);
   expect(root.children[1].fraction).toBeNull();
   await page.locator('#event-position').fill(String(position));
-  await expect(page.locator('#overall')).toHaveText('20%');
+  await expect(page.locator('#overall')).toHaveText('20.0%');
   await expect(page.locator('#tree > .node > .track > .unknown-part')).toHaveAttribute('style', 'width: 10%;');
   await expect(page.locator('#tree > .node > .track > span').first()).toHaveAttribute('style', 'width: 20%;');
+});
+
+
+test('dev tools show actual uneven pace and count mismatches without losing handoff diagnostics', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('./');
+  await page.locator('button[data-scenario="diagnostics"]').click();
+  const trace = (await (await page.request.get('traces.json')).json()).diagnostics;
+  expect(trace.findings.map(finding => finding.kind)).toEqual(['UnevenPace', 'CountMismatch', 'CountMismatch', 'AbandonedPhase']);
+  const children = trace.frames.at(-1).snapshot.root.children;
+  expect(children[0].completed).toBe('48');
+  expect(children[0].total.count).toBe('64');
+  expect(children[1].completed).toBe('80');
+  expect(children[1].total.count).toBe('64');
+  expect(children[1].overrun).toBe(true);
+  for (let index = 0; index < trace.findings.length; index++) {
+    const position = trace.frames.findIndex(frame => frame.finding === index);
+    expect(position).toBeGreaterThan(0);
+    await page.locator('#event-position').fill(String(position));
+    await expect(page.locator('#diagnostic-kind')).toHaveText(trace.findings[index].kind);
+    await expect(page.locator('#diagnostic-evidence')).toHaveText(trace.findings[index].evidence);
+    await page.locator('#diagnostic-more summary').click();
+    await expect(page.locator('#diagnostic-advice')).toHaveText(trace.findings[index].advice);
+    await expect(page.locator('#diagnostic-advice')).toBeVisible();
+    await page.locator('#diagnostic-more summary').click();
+  }
+});
+
+test('every progress display keeps one decimal place', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('./');
+  for (const scenario of ['sequence', 'cancel', 'fork', 'skip', 'smooth', 'diagnostics']) {
+    await page.locator(`button[data-scenario="${scenario}"]`).click();
+    do {
+      await expect(page.locator('#overall')).toHaveText(/^\d+\.\d%$/);
+      const details = await page.locator('.node-details').allTextContents();
+      for (const text of details) expect(text).toMatch(/^(\d+\.\d%|Unknown) ·/);
+      if (!await page.getByRole('button', { name: 'Next event' }).isEnabled()) break;
+      await page.getByRole('button', { name: 'Next event' }).click();
+    } while (true);
+  }
 });

@@ -699,3 +699,8 @@ footer .brand {
   .event-panel pre { min-height: 120px; }
   .tree-panel { min-height: 650px; }
 }
+
+.tree-heading strong, .comparison-heading strong, .node-details { font-variant-numeric: tabular-nums; }
+#diagnostic details { margin: 10px 0; }
+#diagnostic summary { cursor: pointer; font-weight: 600; }
+#diagnostic details p { margin: 10px 0; }

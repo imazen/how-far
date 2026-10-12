@@ -4,7 +4,7 @@ const buttons = [...document.querySelectorAll('[data-scenario]')];
 const scenarios = buttons.map(button => button.dataset.scenario);
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let traces, scenario = 'sequence', position = 0, animation, origin, looping = false;
-let manual = false, inView = false, lastEvent = -1, lastDiagnostic = false;
+let manual = false, inView = false, lastEvent = -1, lastDiagnostic = null;
 const nodes = new Map();
 const el = (tag, cls, text) => {
   const node = document.createElement(tag);
@@ -12,7 +12,7 @@ const el = (tag, cls, text) => {
   if (text !== undefined) node.textContent = text;
   return node;
 };
-const percent = fraction => fraction === null ? 'Unknown' : `${(fraction * 100).toFixed(1).replace('.0', '')}%`;
+const percent = fraction => fraction === null ? 'Unknown' : `${(fraction * 100).toFixed(1)}%`;
 const frames = () => traces[scenario].frames;
 const events = () => traces[scenario].events;
 function treeNode(node) {
@@ -60,7 +60,8 @@ function render() {
   }
   const root = treeNode(frame.snapshot.root);
   if (root.parentElement !== $('tree')) $('tree').replaceChildren(root);
-  $('overall').textContent = percent(frame.snapshot.root.fraction);
+  $('overall-label').textContent = scenario === 'smooth' ? 'What the caller displays' : 'What the caller observes';
+  $('overall').textContent = percent(scenario === 'smooth' ? frame.display_fraction : frame.snapshot.root.fraction);
   $('event-position').max = frames().length - 1;
   $('event-position').value = position;
   $('previous').disabled = position === 0;
@@ -72,15 +73,16 @@ function render() {
     $('recorded-bar').style.width = `${(frame.snapshot.root.fraction ?? 0) * 100}%`;
     $('smoothed-bar').style.width = `${(frame.display_fraction ?? 0) * 100}%`;
   }
-  const showDiagnostic = scenario === 'diagnostics' && position === frames().length - 1;
+  const showDiagnostic = scenario === 'diagnostics' && Number.isInteger(frame.finding);
   $('diagnostic').hidden = !showDiagnostic;
-  if (showDiagnostic && !lastDiagnostic) {
-    const finding = traces[scenario].findings[0];
+  if (showDiagnostic && lastDiagnostic !== frame.finding) {
+    const finding = traces[scenario].findings[frame.finding];
+    $('diagnostic-more').open = false;
     $('diagnostic-kind').textContent = finding.kind;
     $('diagnostic-evidence').textContent = finding.evidence;
     $('diagnostic-advice').textContent = finding.advice;
   }
-  lastDiagnostic = showDiagnostic;
+  lastDiagnostic = showDiagnostic ? frame.finding : null;
 }
 function pause(user = false) {
   cancelAnimationFrame(animation);
@@ -96,7 +98,7 @@ function choose(key, transition = true) {
   scenario = key;
   position = 0;
   lastEvent = -1;
-  lastDiagnostic = false;
+  lastDiagnostic = null;
   nodes.clear();
   $('tree').replaceChildren();
   demo.dataset.scenario = key;
@@ -157,6 +159,7 @@ new IntersectionObserver(entries => {
   if (!inView) pause(); else maybeAutoplay();
 }, { threshold: 0.15 }).observe(demo);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); else maybeAutoplay(); });
+$('diagnostic-more').addEventListener('toggle', () => { if ($('diagnostic-more').open) pause(true); });
 reducedMotion.addEventListener('change', () => { if (reducedMotion.matches) pause(); else maybeAutoplay(); });
 try {
   const response = await fetch(demo.dataset.traceUrl);

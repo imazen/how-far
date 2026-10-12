@@ -2,7 +2,7 @@
 use how_far_along::{prelude::*, *};
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 
 #[derive(Default)]
@@ -12,6 +12,7 @@ struct Trace {
     time_ms: u64,
     smoother: Option<ProgressSmoother>,
     findings: Vec<String>,
+    active_finding: Option<usize>,
 }
 impl Trace {
     fn event(&mut self, observer: &Observer, title: &str, detail: &str, code: &str) {
@@ -34,8 +35,11 @@ impl Trace {
             )
         });
         let displayed = displayed.map_or_else(|| "null".into(), |value| value.to_string());
+        let finding = self
+            .active_finding
+            .map_or_else(|| "null".into(), |i| i.to_string());
         self.frames.push(format!(
-            "{{\"at_ms\":{},\"event\":{},\"display_fraction\":{displayed},\"snapshot\":{snapshot}}}",
+            "{{\"at_ms\":{},\"event\":{},\"display_fraction\":{displayed},\"finding\":{finding},\"snapshot\":{snapshot}}}",
             self.time_ms,
             self.events.len() - 1
         ));
@@ -197,7 +201,7 @@ fn skipping() -> String {
         ],
     );
     let stage = stages.begin(resize);
-    trace.event(&observer, "A plan can include optional work", "Resizing advances the overall bar immediately. The optional watermark keeps its reserved 10% share, shown hatched until it is resolved.", "let (mut stages, [resize, watermark, encode]) = Stages::define(pulse, specs);");
+    trace.event(&observer, "A plan can include optional work", "Resizing advances the overall bar immediately. The optional watermark keeps its reserved 10.0% share, shown hatched until it is resolved.", "let (mut stages, [resize, watermark, encode]) = Stages::define(pulse, specs);");
     for _ in 0..64 {
         stage.step(16).unwrap();
         trace.frame(&observer, 35);
@@ -249,32 +253,65 @@ fn smoothing() -> String {
     trace.event(&observer, "A smooth display, unchanged library code", "Enable the smooth feature in how-far-along. Keep one smoother per observed tree; use recorded states for decisions.", "how-far-along = { version = \"0.1.0\", features = [\"smooth\"] }");
     trace.json()
 }
+// The same illustrative clock drives playback and diagnostic timing. These
+// deliberately authored workloads demonstrate findings, not codec measurements.
+#[derive(Clone, Default)]
+struct DemoClock(Arc<AtomicU64>);
+impl how_far_really::profile::Clock for DemoClock {
+    fn now(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(self.0.load(Ordering::Relaxed))
+    }
+}
 fn diagnostics() -> String {
     use how_far_really::{
         diagnostics::{DiagnosticPulse, Kind, Options},
-        profile::{Profiler, StdClock},
+        profile::Profiler,
     };
-    let profiler = Profiler::new(StdClock::new(), 128);
+    let clock = DemoClock::default();
+    let profiler = Profiler::new(clock.clone(), 128);
+    profiler.set_report_timing(true);
     let root = DiagnosticPulse::new(
         PulseTree::new(
-            Phase::new("Check an export integration", Total::Unknown),
+            Phase::new("Audit a gallery export", Total::Unknown),
             Unstoppable,
         ),
         &profiler,
     );
     let observer = root.observer();
     let mut trace = Trace::default();
-    let (mut stages, [encode]) = Stages::define(
+    let (mut stages, [resize, encode, preview]) = Stages::define(
         &root,
-        [PhaseSpec::new("Encode preview tiles", 1, Total::Exact(128))],
+        [
+            PhaseSpec::new("Resize gallery rows", 3, Total::Exact(64)),
+            PhaseSpec::new("Encode gallery tiles", 5, Total::Exact(64)),
+            PhaseSpec::new("Encode preview tiles", 2, Total::Exact(16)),
+        ],
     );
-    let stage = stages.begin(encode);
-    trace.event(&observer, "Wrap the pulse in a test", "DiagnosticPulse observes the same library function. No separate instrumented API is needed.", "let pulse = DiagnosticPulse::new(tree, &profiler);");
-    for _ in 0..64 {
-        stage.step(2).unwrap();
-        trace.frame(&observer, 45);
+    let stage = stages.begin(resize);
+    trace.event(&observer, "Check the reporting contract", "This deliberately faulty integration under-reports rows, double-counts tiles and forgets a result handoff. Diagnostics observe the ordinary library calls.", "let pulse = DiagnosticPulse::new(tree, &profiler);");
+    for _ in 0..48 {
+        clock.0.store(trace.time_ms + 30, Ordering::Relaxed);
+        stage.step(1).unwrap();
+        trace.frame(&observer, 30);
     }
-    trace.event(&observer, "All units reported, but no result handed over", "This deliberately incorrect integration forgets finish_phase. A full counter cannot prove the operation succeeded.", "encode_preview(input, &stage)?;\n// Missing: result.finish_phase(stage)");
+    trace.event(&observer, "Only 48 of 64 rows reported", "The operation returns success before flushing its last batch. Success resolves the stage, but the count mismatch stays visible to diagnostics.", "resize_rows(input, &stage).finish_phase(stage)?;");
+    Ok::<_, StopReason>(()).finish_phase(stage).unwrap();
+    let stage = stages.begin(encode);
+    trace.event(&observer, "Tiles get slower, then get counted twice", "The second half costs more per tile. An extra batch also pushes the count beyond its exact total. A capped bar must not hide that evidence.", "profiler.set_report_timing(true);\nstage.step(completed_tiles)?;");
+    for tile in 0..80 {
+        let delay = if tile < 32 { 12 } else { 72 };
+        clock.0.store(trace.time_ms + delay, Ordering::Relaxed);
+        stage.step(1).unwrap();
+        trace.frame(&observer, delay);
+    }
+    Ok::<_, StopReason>(()).finish_phase(stage).unwrap();
+    let stage = stages.begin(preview);
+    trace.event(&observer, "A full counter still needs its result", "Preview encoding reports all 16 tiles, then deliberately drops its stage without a result handoff. The owner records Abandoned.", "encode_preview(input, &stage)?;\n// Missing: result.finish_phase(stage)");
+    for _ in 0..16 {
+        clock.0.store(trace.time_ms + 30, Ordering::Relaxed);
+        stage.step(1).unwrap();
+        trace.frame(&observer, 30);
+    }
     drop(stage);
     let result = stages.complete(Ok::<_, StopReason>(()));
     root.complete(result).unwrap();
@@ -283,19 +320,63 @@ fn diagnostics() -> String {
         .snapshot()
         .with_progress(observer.snapshot())
         .diagnose(&Options::default());
-    let finding = findings
+    let uneven = findings
         .iter()
-        .find(|finding| finding.kind == Kind::AbandonedPhase)
-        .expect("diagnostics must find the missing handoff");
-    // These authored phase names yield ASCII diagnostic text.
-    assert!(finding.evidence.is_ascii() && finding.advice.is_ascii());
-    trace.findings.push(format!(
-        "{{\"kind\":\"AbandonedPhase\",\"evidence\":{:?},\"advice\":{:?}}}",
-        finding.evidence, finding.advice
-    ));
-    trace.event(&observer, "Diagnostics expose the missing handoff", "The returned success does not erase an abandoned child. This finding below is generated by how-far-really from the recorded trace.", "trace.diagnose(&Options::default())");
+        .find(|f| f.kind == Kind::UnevenPace)
+        .expect("uneven tile costs must be detected");
+    let mismatches: Vec<_> = findings
+        .iter()
+        .filter(|f| f.kind == Kind::CountMismatch)
+        .collect();
+    assert_eq!(
+        mismatches.len(),
+        2,
+        "both under- and over-reporting must be detected"
+    );
+    let abandoned = findings
+        .iter()
+        .find(|f| f.kind == Kind::AbandonedPhase)
+        .expect("missing handoff must be detected");
+    for finding in [uneven, mismatches[0], mismatches[1], abandoned] {
+        assert!(finding.evidence.is_ascii() && finding.advice.is_ascii());
+        trace.findings.push(format!(
+            "{{\"kind\":\"{:?}\",\"evidence\":{:?},\"advice\":{:?}}}",
+            finding.kind, finding.evidence, finding.advice
+        ));
+    }
+    let explanations = [
+        (
+            "Uneven work needs better units",
+            "Equal tile counts need not mean equal effort. Split distinct operations into weighted stages, or count a unit that tracks their cost. This example uses an illustrative clock.",
+            "trace.diagnose(&Options::default())",
+        ),
+        (
+            "Under-reporting survives success",
+            "The tracker kept 48 completed rows against an exact total of 64. Flush the final batch before handing over the result.",
+            "batch.finish()?;\nresult.finish_phase(stage)?;",
+        ),
+        (
+            "Over-reporting is not extra completion",
+            "Encoding reported 80 tiles against an exact total of 64. The progress bar caps at 100.0%, while diagnostics preserve the original counts.",
+            "// Report each completed unit exactly once.\nstage.step(newly_completed)?;",
+        ),
+        (
+            "Diagnostics expose the missing handoff",
+            "The caller's success does not erase an abandoned preview. All four findings come from how-far-really, using the recorded counts and illustrative timing.",
+            "result.finish_phase(stage)?;",
+        ),
+    ];
+    for (index, (title, detail, code)) in explanations.into_iter().enumerate() {
+        trace.active_finding = Some(index);
+        trace.event(&observer, title, detail, code);
+        // Time to read completed-run findings; work itself never pauses for narration.
+        for _ in 0..60 {
+            trace.frame(&observer, 50);
+        }
+    }
     trace.json()
 }
+
 fn main() {
     println!(
         "{{\"sequence\":{},\"cancel\":{},\"fork\":{},\"skip\":{},\"smooth\":{},\"diagnostics\":{}}}",

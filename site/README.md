@@ -26,3 +26,10 @@ service is required. A failed trace load leaves the written guides available.
 The player reserves a stable panel height across scenarios and advances work
 without pauses for explanatory text. The step controls still expose every
 result handoff. Hatched segments mark the tracker's unresolved budget share.
+
+The smoothing example uses the Rust display estimate for the caller's headline,
+while retaining recorded counts and the side-by-side comparison. All percentage
+readouts keep one decimal place. The diagnostic example deliberately under-reports,
+over-reports, varies per-unit costs and abandons a stage. Its injected clock follows
+the illustrative playback timeline; findings are real library output, not production
+measurements. Each finding has an expandable explanation from the diagnostic library.
