@@ -5,10 +5,13 @@ edition.workspace = true
 rust-version = "1.88"
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/how-far"
+readme = "README.md"
 description = "Cancellation, progress, and weighted phases through one interface for library authors"
 keywords = ["progress", "cancellation", "no_std"]
 categories = ["concurrency", "no-std"]
 
 [dependencies]
-# `alloc` gives `Arc<dyn Stop>` its `Stop` impl, which `PulseHandle` relies on.
+# `alloc` supports owned stop policies used by shared pulses.
 enough = { workspace = true, features = ["alloc"] }

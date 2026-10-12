@@ -5,7 +5,12 @@ edition.workspace = true
 rust-version = "1.88"
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/how-far-really"
+readme = "README.md"
 description = "Opt-in diagnostics and checkpoint tuning for how-far"
+keywords = ["progress", "cancellation", "profiling", "diagnostics"]
+categories = ["development-tools::profiling", "development-tools::testing"]
 
 [features]
 # `Kind::SuggestedStages`: stages a phase could declare, from when each source

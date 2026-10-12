@@ -1,4 +1,6 @@
-# how-far-really
+# how-far-really [![CI](https://img.shields.io/github/actions/workflow/status/imazen/how-far/ci.yml?style=flat-square&label=CI)](https://github.com/imazen/how-far/actions/workflows/ci.yml) [![crates.io](https://img.shields.io/crates/v/how-far-really?style=flat-square)](https://crates.io/crates/how-far-really) [![lib.rs](https://img.shields.io/crates/v/how-far-really?style=flat-square&label=lib.rs&color=blue)](https://lib.rs/crates/how-far-really) [![docs.rs](https://img.shields.io/docsrs/how-far-really?style=flat-square)](https://docs.rs/how-far-really) [![license](https://img.shields.io/crates/l/how-far-really?style=flat-square)](https://github.com/imazen/how-far#license)
+
+[Guide and interactive examples](https://imazen.github.io/how-far/) · [API reference](https://docs.rs/how-far-really)
 
 Opt-in diagnostics and checkpoint tuning for applications and library tests.
 This crate depends on `how-far` and `how-far-along`; neither depends on it.
@@ -8,6 +10,14 @@ For library tests and benchmarks, put this crate in `[dev-dependencies]`.
 A diagnostics executable uses it in `[dependencies]`; an application can also
 opt into runtime profiling. Wrap the caller's pulse and pass it to the same
 library function you already use:
+
+For a library already using `how-far = "0.1.0"`, add:
+
+```toml
+[dev-dependencies]
+how-far-along = "0.1.0"
+how-far-really = "0.1.0"
+```
 
 ```rust
 use how_far::{prelude::*, StopReason, Total, Unstoppable};
@@ -77,8 +87,8 @@ Trace JSON uses schema version 2 and embeds a complete versioned tracking JSON
 document under `progress`. Node/span identifiers are local to the process/trace.
 Times and unit totals are strings, to avoid JavaScript precision loss; call
 counts and identifiers are JSON numbers.
-See the [example crates](../../examples/how-far-app/README.md) and
-[design and API boundaries](../../docs/how-far-design.md).
+See the [example crates](https://github.com/imazen/how-far/blob/main/examples/how-far-app/README.md) and
+[design and API boundaries](https://github.com/imazen/how-far/blob/main/docs/how-far-design.md).
 
-The [tested integration guide](../../docs/how-far-integration.md) connects
+The [tested integration guide](https://github.com/imazen/how-far/blob/main/docs/how-far-integration.md) connects
 library code, caller-owned completion, diagnostics and display smoothing.

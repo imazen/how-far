@@ -1,10 +1,17 @@
-# how-far
+# how-far [![CI](https://img.shields.io/github/actions/workflow/status/imazen/how-far/ci.yml?style=flat-square&label=CI)](https://github.com/imazen/how-far/actions/workflows/ci.yml) [![crates.io](https://img.shields.io/crates/v/how-far?style=flat-square)](https://crates.io/crates/how-far) [![lib.rs](https://img.shields.io/crates/v/how-far?style=flat-square&label=lib.rs&color=blue)](https://lib.rs/crates/how-far) [![docs.rs](https://img.shields.io/docsrs/how-far?style=flat-square)](https://docs.rs/how-far) [![license](https://img.shields.io/crates/l/how-far?style=flat-square)](https://github.com/imazen/how-far#license)
+
+[Guide and interactive examples](https://imazen.github.io/how-far/) · [API reference](https://docs.rs/how-far)
 
 A small `no_std + alloc` protocol for cooperative cancellation and approximate
 progress. Libraries accept `&dyn Pulse` and return their own ordinary `Result`.
 No tracker, clock, executor, serialization, or diagnostic collector is required.
 Rust 1.88, like the other how-far crates; pointer atomics and an allocator are
 required.
+
+```toml
+[dependencies]
+how-far = "0.1.0"
+```
 
 ## One operation
 
@@ -28,7 +35,7 @@ assert_eq!(checksum(b"hello", &how_far::NoPulse), Ok(532));
 Use the same function with `&how_far::NoPulse`, a tracker from `how-far-along`,
 or `&StopOnly::borrowed(&token)` for cancellation alone. The library never
 finishes the borrowed input pulse: its caller owns that result handoff.
-See the [application quickstart](../how-far-along/README.md).
+See the [application quickstart](https://github.com/imazen/how-far/blob/main/crates/how-far-along/README.md).
 
 ## Several operations
 
@@ -87,7 +94,7 @@ and join them with your threading or async library, then hand the combined
 result to the enclosing stage. Branch failure does not stop siblings by itself.
 For runtime-sized repeated work, `Stages::new` plus `begin_next()` uses the
 same handles without named reservations. See the
-[fork–join example](../../docs/how-far-integration.md#forkjoin-with-different-operations).
+[fork–join example](https://github.com/imazen/how-far/blob/main/docs/how-far-integration.md#forkjoin-with-different-operations).
 
 `Complete::complete(result)` and `ResultExt::finish_phase(owner)` are explicit
 result handoffs, returning the original value/error unchanged. Untouched phases
@@ -137,8 +144,8 @@ work with scoped workers; owned `new`/`replacing` policies can use `share()`. Tr
 `how-far-along`; profiling and diagnostics live in `how-far-really`.
 
 Runnable, cross-crate usage and intentional mistakes are in
-[the example crates](../../examples/how-far-app/README.md).
+[the example crates](https://github.com/imazen/how-far/blob/main/examples/how-far-app/README.md).
 
-See the [tested integration guide](../../docs/how-far-integration.md) for dependency setup, result
+See the [tested integration guide](https://github.com/imazen/how-far/blob/main/docs/how-far-integration.md) for dependency setup, result
 handoffs, callbacks, diagnostics, and caller-side display smoothing. Run it
 with `just check-integration` from the workspace root.

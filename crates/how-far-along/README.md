@@ -1,7 +1,14 @@
-# how-far-along
+# how-far-along [![CI](https://img.shields.io/github/actions/workflow/status/imazen/how-far/ci.yml?style=flat-square&label=CI)](https://github.com/imazen/how-far/actions/workflows/ci.yml) [![crates.io](https://img.shields.io/crates/v/how-far-along?style=flat-square)](https://crates.io/crates/how-far-along) [![lib.rs](https://img.shields.io/crates/v/how-far-along?style=flat-square&label=lib.rs&color=blue)](https://lib.rs/crates/how-far-along) [![docs.rs](https://img.shields.io/docsrs/how-far-along?style=flat-square)](https://docs.rs/how-far-along) [![license](https://img.shields.io/crates/l/how-far-along?style=flat-square)](https://github.com/imazen/how-far#license)
+
+[Guide and interactive examples](https://imazen.github.io/how-far/) · [API reference](https://docs.rs/how-far-along)
 
 Tracking and observation for `how-far`. This crate records declared work;
 applications choose when to observe it. It starts no threads and reads no clocks.
+
+```toml
+[dependencies]
+how-far-along = "0.1.0"
+```
 
 The library accepts `&dyn Pulse`; the application owns the tree and its final
 result. Keep an observer for your display, then hand the result back before `?`:
@@ -28,7 +35,7 @@ assert_eq!(observer.snapshot().fraction(), Some(1.0));
 ```
 
 Replace `Unstoppable` with your application's stop token. The library's code
-stays the same. [The integration guide](../../docs/how-far-integration.md)
+stays the same. [The integration guide](https://github.com/imazen/how-far/blob/main/docs/how-far-integration.md)
 shows cancellation callbacks, nested stages and display smoothing.
 
 Every phase starts `Status::NotStarted`, becomes `Running` when entered or
@@ -76,8 +83,8 @@ use how_far_along::diagnostics::DiagnosticPulse;
 ```
 
 Tracking JSON uses schema version 2 (`NotStarted` and inferred-completion evidence).
-See [the example application](../../examples/how-far-app/README.md) and
-[design and API boundaries](../../docs/how-far-design.md).
+See [the example application](https://github.com/imazen/how-far/blob/main/examples/how-far-app/README.md) and
+[design and API boundaries](https://github.com/imazen/how-far/blob/main/docs/how-far-design.md).
 
-The [tested integration guide](../../docs/how-far-integration.md) connects
+The [tested integration guide](https://github.com/imazen/how-far/blob/main/docs/how-far-integration.md) connects
 library code, caller-owned completion, diagnostics and display smoothing.

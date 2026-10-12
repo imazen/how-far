@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version = "1.88"
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/how-far-along"
+readme = "README.md"
 description = "Tracking and observation for cooperative progress and cancellation"
 keywords = ["progress", "cancellation", "no_std"]
 categories = ["concurrency", "no-std"]
@@ -20,10 +23,10 @@ smooth = []
 [dependencies]
 enough = { workspace = true, features = ["alloc"] }
 how-far.workspace = true
-critical-section = "1.2"
+critical-section = "1.2.0"
 
 [dev-dependencies]
-critical-section = { version = "1.2", features = ["std"] }
+critical-section = { version = "1.2.0", features = ["std"] }
 almost-enough.workspace = true
 rayon = "1.12.0"
 tokio = { version = "1.53.1", features = ["rt", "sync"] }

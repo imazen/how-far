@@ -5,19 +5,18 @@ cancellation, observation, and diagnostics. The Rust snippets below are compiled
 and run as doctests in `how-far-example-app`; `just check-integration` also runs
 the cross-crate scenarios and the runnable `integration` example.
 
-## Dependencies before publication
+## Dependencies
 
-The how-far crates are not published yet. Start with `how-far` in the library;
-add tracking and diagnostics as development tools when needed. These entries
-use the merged API and keep all three crates on the same revision:
+Start with `how-far` in the library. Add tracking and diagnostics as development
+tools when needed:
 
 ```toml
 [dependencies]
-how-far = { git = "https://github.com/imazen/how-far", rev = "7b88ef7b55a2253422e3728106aafd8437724328" }
+how-far = "0.1.0"
 
 [dev-dependencies]
-how-far-along = { git = "https://github.com/imazen/how-far", rev = "7b88ef7b55a2253422e3728106aafd8437724328", features = ["smooth"] }
-how-far-really = { git = "https://github.com/imazen/how-far", rev = "7b88ef7b55a2253422e3728106aafd8437724328" }
+how-far-along = { version = "0.1.0", features = ["smooth"] }
+how-far-really = "0.1.0"
 ```
 
 For a library, the tracker and diagnostic tools normally belong in

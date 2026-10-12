@@ -1,8 +1,8 @@
 # Test and tune a library that accepts `&dyn Pulse`
 
 Keep `how-far` in the library's production dependencies and the tracker and
-diagnostics in dev-dependencies. The crates are not published yet; use the
-[pinned dependency setup and tested integration guide](how-far-integration.md).
+diagnostics in dev-dependencies. Use the 0.1 versions in the
+[dependency setup and tested integration guide](how-far-integration.md).
 
 ## Test what the library reports
 

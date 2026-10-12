@@ -1,5 +1,7 @@
 # how-far [![CI](https://img.shields.io/github/actions/workflow/status/imazen/how-far/ci.yml?style=flat-square&label=CI)](https://github.com/imazen/how-far/actions/workflows/ci.yml) [![MSRV](https://img.shields.io/badge/MSRV-1.88-blue?style=flat-square)](https://doc.rust-lang.org/cargo/reference/manifest.html#the-rust-version-field) [![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue?style=flat-square)](#license)
 
+[Documentation and interactive examples](https://imazen.github.io/how-far/) · [API reference](https://docs.rs/how-far)
+
 Add cooperative cancellation and progress to a Rust library through one
 argument: `&dyn Pulse`. Your functions keep their ordinary inputs and results.
 The caller chooses whether to track progress, display it, or collect diagnostics.
@@ -46,18 +48,18 @@ and checks; finish with `pace.finish()` to check the last partial batch.
 
 ## Add it to your project
 
-The crates are not published yet. These dependencies use the merged API:
+Use the 0.1 release:
 
 ```toml
 [dependencies]
-how-far = { git = "https://github.com/imazen/how-far", rev = "7b88ef7b55a2253422e3728106aafd8437724328" }
-how-far-along = { git = "https://github.com/imazen/how-far", rev = "7b88ef7b55a2253422e3728106aafd8437724328" }
+how-far = "0.1.0"
+how-far-along = "0.1.0"
 ```
 
 For a library, keep only `how-far` in production dependencies; put the tracker
 in `dev-dependencies` when it is used only by tests and examples. All three
 crates need Rust 1.88. Core is `no_std + alloc`, has no feature flags, and depends
-only on `enough`. [Dependency details](docs/how-far-integration.md#dependencies-before-publication)
+only on `enough`. [Dependency details](docs/how-far-integration.md#dependencies)
 cover diagnostics and matching an existing `enough` dependency.
 
 ## Grow with the work
