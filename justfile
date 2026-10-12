@@ -83,3 +83,19 @@ check-direct-stages:
 check-embedded:
     cargo build -p how-far-along --target thumbv7em-none-eabihf --no-default-features --features smooth
     cargo build -p how-far-along --target wasm32-unknown-unknown --no-default-features --features smooth
+
+# Build the public guide from tested docs and actual tracker snapshots.
+site-build:
+    python3 dev/build-site.py
+
+# Test the published layout and all three lifecycle traces in a browser.
+site-check: site-build
+    cd site && npm ci && npx playwright test
+
+# Release gates for every publishable crate and its consumer examples.
+release-check:
+    cargo test --workspace --all-features --all-targets
+    cargo test --workspace --all-features --doc
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
+    cargo semver-checks -p how-far -p how-far-along -p how-far-really --baseline-rev 7b88ef7b55a2253422e3728106aafd8437724328
+    cargo publish --dry-run -p how-far -p how-far-along -p how-far-really
