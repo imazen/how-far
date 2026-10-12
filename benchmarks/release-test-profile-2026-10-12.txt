@@ -1,0 +1,34 @@
+# zenbench results (complete)
+# git: 38ebee79bf64b1dd70853f846275176dd8219f71
+# 2026-10-12T10:28:18Z
+#
+# Re-read this file instead of re-running the benchmark.
+# Formats:  cargo bench -- --format=llm|csv|md|json
+# Env var:  ZENBENCH_FORMAT=llm cargo bench
+# Disable:  ZENBENCH_NO_SAVE=1 cargo bench
+#
+# Fields: group | benchmark | vs_base comparison | min mean median mad | throughput | n cv rounds calls
+#
+group=check_isolated benchmark="&dyn Pulse → NoPulse"  |  vs_base=baseline  |  min=59.61µs mean=61.33µs median=61.28µs mad=2.05µs  |  throughput=163.06 Mchecks/s  |  n=4 cv=2.8% rounds=4 calls=38 mean_ci=[59.90µs 62.75µs] cold=58.66µs
+group=check_isolated benchmark="&dyn Pulse → tree(Unstoppable)"  |  vs_base_pct=+120.01 ci=[+116.93% +122.21%] significant=true effect=51.03 p=1.0000  |  min=128.31µs mean=132.70µs median=133.88µs mad=1.03µs  |  throughput=75.36 Mchecks/s  |  n=4 cv=2.2% rounds=4 calls=38 mean_ci=[129.85µs 134.58µs] cold=128.93µs
+group=check_isolated benchmark="&dyn Pulse → tree(Stopper)"  |  vs_base_pct=+202.37 ci=[+195.70% +209.34%] significant=true effect=42.27 p=1.0000  |  min=181.44µs mean=185.43µs median=184.91µs mad=3.17µs  |  throughput=53.93 Mchecks/s  |  n=4 cv=2.0% rounds=4 calls=38 mean_ci=[182.51µs 188.88µs] cold=181.74µs
+group=check_isolated benchmark="may_stop gate → tree(Unstoppable)"  |  vs_base_pct=+0.01 ci=[-5.62% +7.03%] significant=false effect=0.00 p=1.0000  |  min=59.12µs mean=61.33µs median=59.59µs mad=428.5ns  |  throughput=163.04 Mchecks/s  |  n=4 cv=6.2% rounds=4 calls=38 mean_ci=[59.27µs 65.14µs] cold=59.45µs
+group=check_isolated benchmark="impl Stop → Unstoppable"  |  vs_base_pct=-17.67 ci=[-20.66% -15.21%] significant=true effect=-5.79 p=1.0000  |  min=49.39µs mean=50.49µs median=49.52µs mad=188.4ns  |  throughput=198.05 Mchecks/s  |  n=4 cv=4.0% rounds=4 calls=38 mean_ci=[49.39µs 52.50µs] cold=49.79µs
+group=advance_isolated benchmark="&dyn Report → NoReport"  |  vs_base=baseline  |  min=52.76µs mean=55.29µs median=55.35µs mad=3.48µs  |  throughput=180.87 Mreports/s  |  n=4 cv=5.0% rounds=4 calls=23 mean_ci=[52.88µs 57.70µs] cold=52.06µs
+group=advance_isolated benchmark="&dyn Report → Reporter"  |  vs_base_pct=+281.11 ci=[+271.57% +290.64%] significant=true effect=44.47 p=1.0000  |  min=207.49µs mean=210.70µs median=209.42µs mad=2.35µs  |  throughput=47.46 Mreports/s  |  n=4 cv=1.9% rounds=4 calls=23 mean_ci=[207.84µs 214.41µs] cold=208.41µs
+group=advance_isolated benchmark="&dyn Pulse → tree leaf"  |  vs_base_pct=+438.86 ci=[+437.06% +441.91%] significant=true effect=109.78 p=1.0000  |  min=292.08µs mean=299.54µs median=301.55µs mad=1.88µs  |  throughput=33.38 Mreports/s  |  n=4 cv=1.7% rounds=4 calls=23 mean_ci=[294.73µs 302.82µs] cold=296.68µs
+group=advance_isolated benchmark="Batch(64) → Reporter"  |  vs_base_pct=+49.84 ci=[+39.82% +62.06%] significant=true effect=6.36 p=1.0000  |  min=79.07µs mean=82.84µs median=80.68µs mad=1.43µs  |  throughput=120.71 Mreports/s  |  n=4 cv=6.6% rounds=4 calls=23 mean_ci=[79.56µs 88.30µs] cold=79.17µs
+group=codec_loop_chunk_4096 benchmark=NoPulse  |  vs_base=baseline  |  min=1.46ms mean=1.47ms median=1.47ms mad=2.34µs  |  throughput=170.57 MiB/s  |  n=4 cv=0.3% rounds=4 calls=3 mean_ci=[1.46ms 1.47ms] cold=1.48ms
+group=codec_loop_chunk_4096 benchmark=tree(Unstoppable)  |  vs_base_pct=+0.17 ci=[-0.52% +0.81%] significant=false effect=0.32 p=1.0000  |  min=1.46ms mean=1.47ms median=1.47ms mad=7.39µs  |  throughput=170.28 MiB/s  |  n=4 cv=0.7% rounds=4 calls=3 mean_ci=[1.46ms 1.48ms] cold=1.48ms
+group=codec_loop_chunk_4096 benchmark=tree(Stopper)  |  vs_base_pct=+2.05 ci=[-0.47% +4.56%] significant=false effect=0.90 p=1.0000  |  min=1.46ms mean=1.50ms median=1.49ms mad=46.51µs  |  throughput=167.15 MiB/s  |  n=4 cv=3.2% rounds=4 calls=3 mean_ci=[1.46ms 1.53ms] cold=1.47ms
+group=codec_loop_chunk_256 benchmark=NoPulse  |  vs_base=baseline  |  min=1.44ms mean=1.46ms median=1.46ms mad=16.95µs  |  throughput=171.32 MiB/s  |  n=4 cv=1.0% rounds=4 calls=3 mean_ci=[1.45ms 1.47ms] cold=1.48ms
+group=codec_loop_chunk_256 benchmark=tree(Unstoppable)  |  vs_base_pct=+3.75 ci=[+1.95% +5.55%] significant=true effect=2.31 p=1.0000  |  min=1.48ms mean=1.51ms median=1.51ms mad=37.86µs  |  throughput=165.13 MiB/s  |  n=4 cv=2.0% rounds=4 calls=3 mean_ci=[1.49ms 1.54ms] cold=1.51ms
+group=codec_loop_chunk_256 benchmark=tree(Stopper)  |  vs_base_pct=+4.35 ci=[+1.85% +8.23%] significant=true effect=1.84 p=1.0000  |  min=1.49ms mean=1.52ms median=1.50ms mad=8.08µs  |  throughput=164.18 MiB/s  |  n=4 cv=3.1% rounds=4 calls=3 mean_ci=[1.50ms 1.57ms] cold=1.51ms
+group=codec_loop_chunk_64 benchmark=NoPulse  |  vs_base=baseline  |  min=1.43ms mean=1.44ms median=1.44ms mad=12.90µs  |  throughput=173.54 MiB/s  |  n=4 cv=1.0% rounds=4 calls=3 mean_ci=[1.43ms 1.45ms] cold=1.45ms
+group=codec_loop_chunk_64 benchmark=tree(Unstoppable)  |  vs_base_pct=+10.51 ci=[+10.12% +10.96%] significant=true effect=13.13 p=1.0000  |  min=1.57ms mean=1.58ms median=1.58ms mad=4.72µs  |  throughput=158.01 MiB/s  |  n=4 cv=0.8% rounds=4 calls=3 mean_ci=[1.57ms 1.60ms] cold=1.57ms
+group=codec_loop_chunk_64 benchmark=tree(Stopper)  |  vs_base_pct=+11.99 ci=[+11.31% +12.87%] significant=true effect=24.76 p=1.0000  |  min=1.58ms mean=1.60ms median=1.60ms mad=6.56µs  |  throughput=156.19 MiB/s  |  n=4 cv=0.8% rounds=4 calls=3 mean_ci=[1.59ms 1.61ms] cold=1.61ms
+group=dyn_vs_generic_chunk_256 benchmark="&dyn Pulse → tree"  |  vs_base=baseline  |  min=1.48ms mean=1.51ms median=1.50ms mad=13.46µs  |  throughput=165.60 MiB/s  |  n=4 cv=2.4% rounds=4 calls=3 mean_ci=[1.49ms 1.54ms] cold=1.48ms
+group=dyn_vs_generic_chunk_256 benchmark="impl Pulse → tree"  |  vs_base_pct=-3.21 ci=[-3.63% -2.51%] significant=true effect=-5.62 p=1.0000  |  min=1.44ms mean=1.44ms median=1.44ms mad=6.65µs  |  throughput=173.19 MiB/s  |  n=4 cv=0.4% rounds=4 calls=3 mean_ci=[1.44ms 1.45ms] cold=1.44ms
+group=dyn_vs_generic_chunk_256 benchmark="impl Pulse → NoPulse"  |  vs_base_pct=+1.28 ci=[+0.68% +2.13%] significant=false effect=2.51 p=1.0000  |  min=1.51ms mean=1.51ms median=1.51ms mad=7.53µs  |  throughput=165.12 MiB/s  |  n=4 cv=0.5% rounds=4 calls=3 mean_ci=[1.51ms 1.52ms] cold=1.52ms
+group=dyn_vs_generic_chunk_256 benchmark="gated &dyn Pulse → NoPulse"  |  vs_base_pct=-5.39 ci=[-7.93% -2.84%] significant=true effect=-2.78 p=1.0000  |  min=1.40ms mean=1.43ms median=1.43ms mad=16.59µs  |  throughput=175.03 MiB/s  |  n=4 cv=1.4% rounds=4 calls=3 mean_ci=[1.41ms 1.44ms] cold=1.41ms
+group=dyn_vs_generic_chunk_256 benchmark="gated &dyn Pulse → tree"  |  vs_base_pct=-2.97 ci=[-3.49% -2.57%] significant=true effect=-6.56 p=1.0000  |  min=1.45ms mean=1.45ms median=1.45ms mad=3.24µs  |  throughput=172.37 MiB/s  |  n=4 cv=0.4% rounds=4 calls=3 mean_ci=[1.45ms 1.46ms] cold=1.45ms
